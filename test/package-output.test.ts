@@ -1,11 +1,26 @@
 import { expect, it } from 'vitest'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import oracle from './fixtures/routing-oracle-0.4.2.json' with { type: 'json' }
+
+// npm 11 refuses identical user/global config paths (e.g. both /dev/null in isolated testbeds).
+const npmEnv = () => {
+  const env: NodeJS.ProcessEnv = { ...process.env, npm_config_offline: 'true' }
+  const user = env.NPM_CONFIG_USERCONFIG ?? env.npm_config_userconfig
+  const global = env.NPM_CONFIG_GLOBALCONFIG ?? env.npm_config_globalconfig
+  if (user && user === global) {
+    const empty = join(mkdtempSync(join(tmpdir(), 'amr-npmrc-')), 'globalrc')
+    writeFileSync(empty, '')
+    delete env.npm_config_globalconfig
+    env.NPM_CONFIG_GLOBALCONFIG = empty
+  }
+  return env
+}
+
 
 const pkg = resolve(import.meta.dirname, '..')
 const read = (path: string) => readFileSync(path, 'utf8')
@@ -25,8 +40,8 @@ it('spec Scenario "源码与文案不含版本"', () => {
   // checkout keeps them in this package. No `../../` monorepo assumption.
   const modules = dirname(dirname(createRequire(join(pkg, 'package.json')).resolve('typescript/package.json')))
   symlinkSync(modules, join(work, 'node_modules'), 'dir')
-  execFileSync('npm', ['run', 'build'], { cwd: work, stdio: 'pipe', env: { ...process.env, npm_config_offline: 'true' } })
-  const output = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: work, encoding: 'utf8', env: { ...process.env, npm_config_offline: 'true' } })) as { files: { path: string }[] }[] | Record<string, { files: { path: string }[] }>
+  execFileSync('npm', ['run', 'build'], { cwd: work, stdio: 'pipe', env: npmEnv() })
+  const output = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: work, encoding: 'utf8', env: npmEnv() })) as { files: { path: string }[] }[] | Record<string, { files: { path: string }[] }>
   const [packed] = Array.isArray(output) ? output : Object.values(output)
   if (!packed) throw new Error('npm pack returned no package metadata')
   const paths = packed.files.map(f => f.path)

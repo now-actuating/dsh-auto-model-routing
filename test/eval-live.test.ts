@@ -6,11 +6,26 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+// npm 11 refuses identical user/global config paths (e.g. both /dev/null in isolated testbeds).
+const npmEnv = () => {
+  const env: NodeJS.ProcessEnv = { ...process.env, npm_config_offline: 'true' }
+  const user = env.NPM_CONFIG_USERCONFIG ?? env.npm_config_userconfig
+  const global = env.NPM_CONFIG_GLOBALCONFIG ?? env.npm_config_globalconfig
+  if (user && user === global) {
+    const empty = join(mkdtempSync(join(tmpdir(), 'amr-npmrc-')), 'globalrc')
+    writeFileSync(empty, '')
+    delete env.npm_config_globalconfig
+    env.NPM_CONFIG_GLOBALCONFIG = empty
+  }
+  return env
+}
+
 // eval/live.mjs is a manual paid script; here it runs against a preloaded fetch stub only.
 const pkg = resolve(import.meta.dirname, '..')
 let work: string
 const STUB = `
 import { appendFileSync } from 'node:fs'
+
 const log = process.env.STUB_LOG
 globalThis.fetch = async (url, init = {}) => {
   appendFileSync(log, JSON.stringify({ url: String(url), body: init.body ?? null }) + '\\n')
@@ -25,7 +40,7 @@ beforeAll(() => {
   for (const entry of readdirSync(pkg)) if (!['lib', 'node_modules'].includes(entry)) cpSync(join(pkg, entry), join(work, entry), { recursive: true })
   const modules = dirname(dirname(createRequire(join(pkg, 'package.json')).resolve('typescript/package.json')))
   symlinkSync(modules, join(work, 'node_modules'), 'dir')
-  execFileSync('npm', ['run', 'build'], { cwd: work, stdio: 'pipe', env: { ...process.env, npm_config_offline: 'true' } })
+  execFileSync('npm', ['run', 'build'], { cwd: work, stdio: 'pipe', env: npmEnv() })
   mkdirSync(join(work, 'stub'), { recursive: true })
   writeFileSync(join(work, 'stub/fetch.mjs'), STUB)
 }, 120_000)
