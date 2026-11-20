@@ -9,8 +9,7 @@ import { SettingsStore } from './settings.js'
 import { settingsHost } from './settings-host.js'
 import { homedir } from 'node:os'
 import { FileStateStore, RoutingState } from './state.js'
-import { endpoint, labelEndpoint, observeEndpoint, type AgentRef } from './endpoints.js'
-import { FeedbackBook } from './feedback.js'
+import { endpoint, type AgentRef } from './endpoints.js'
 import { JevClient } from './jev.js'
 import { routeSubagentTool } from './subagent-tool.js'
 import { policyHost } from './policy-host.js'
@@ -35,10 +34,8 @@ export function apply(ctx: Context, config: Config = {}): void {
   const jev = new JevClient({ get: hostSettings.credential }, config.jevBase, config.jevTimeoutMs ?? (() => settings.read().settings.jevTimeoutMs), config.jevBase ? undefined : () => settings.read().settings.decisionService)
   const stateFiles = new FileStateStore(resolve(home, 'state/auto-model-routing/sessions'))
   const state = new RoutingState(stateFiles)
-  const feedback = new FeedbackBook(resolve(home, 'state/auto-model-routing/allocation-feedback.jsonl'))
-  // Official writer is available only while the session controller is mounted.
-  let selectModel: ((request: { sessionId: string; provider: string; model: string; reasoningEffort?: string }) => Promise<unknown>) | undefined
-  const policy = policyHost(ctx, { feedback, jev, state, selectModel: async request => { if (!selectModel) throw new Error('session controller is unavailable'); await selectModel(request) }, store: new PolicyStore(resolve(home, CHILD_DECISIONS_DIR), registry), settings: () => settings.read().settings, catalog: provider => hostSettings.catalog(provider), registry })
+  // The former allocation-feedback.jsonl ledger (main-session ratings) is left on disk as is: neither read nor removed.
+  const policy = policyHost(ctx, { jev, state, store: new PolicyStore(resolve(home, CHILD_DECISIONS_DIR), registry), settings: () => settings.read().settings, catalog: provider => hostSettings.catalog(provider), registry })
   const toastOn = (): boolean => settings.read().settings.decisionToast
   ctx.effect(() => ctx.tools.register(routeSubagentTool(jev, { agents: ctx.agents as never, state, readSettings: () => settings.read().settings, catalog: hostSettings.catalog, registry })))
   ctx.on('agent/created', ({ agent, source }) => {
@@ -58,11 +55,6 @@ export function apply(ctx: Context, config: Config = {}): void {
     return value
   }
 
-  ctx.inject(['sessionController'], child => {
-    selectModel = request => child.sessionController.selectModel(request as never)
-    child.effect(() => () => { selectModel = undefined })
-  })
-
   ctx.inject(['connection', 'sessionController'], child => {
     const modeRequest = async (operation: 'state' | 'setMode', payload: unknown): Promise<Response> => {
       const resolveAgent = async (id: string) => {
@@ -74,28 +66,19 @@ export function apply(ctx: Context, config: Config = {}): void {
         const target = await resolveAgent((payload as { sessionId: string }).sessionId)
         if (target?.origin === 'subagent') return Response.json({ applicable: false })
       }
-      let manualDecision: { sessionId: string; decisionId: number } | undefined
       if (operation === 'setMode' && typeof (payload as { sessionId?: unknown })?.sessionId === 'string') {
         const id = (payload as { sessionId: string }).sessionId, mode = (payload as { mode?: unknown }).mode
-        if ((mode === 'AUTO' || mode === 'MANUAL') && state.read(id).mode !== mode && await resolveAgent(id)) {
-          const decisionId = policy.appliedDecision(id)
-          if (mode === 'MANUAL' && decisionId !== undefined) manualDecision = { sessionId: id, decisionId }
-          policy.invalidate(id)
-        }
+        if ((mode === 'AUTO' || mode === 'MANUAL') && state.read(id).mode !== mode && await resolveAgent(id)) policy.invalidate(id)
       }
       const response = await endpoint(operation, payload, resolveAgent, state)
       if (!response.ok) return response
-      if (manualDecision) {
-        try { feedback.fact(manualDecision.sessionId, manualDecision.decisionId, 'manual-switch') }
-        catch { ctx.logger.warn('auto-model-routing: could not record MANUAL switch') }
-      }
       const sessionId = (payload as { sessionId: string }).sessionId
       const resolved = await child.sessionController.resolveAgent(sessionId as never).catch(() => undefined)
       const selection = resolved && 'agent' in resolved ? currentMainSelection(ctx, resolved.agent) : undefined
       const supported = mainSupported(selection, registry)
       if (!supported && state.read(sessionId).mode === 'AUTO') { state.setMode(sessionId, 'MANUAL'); policy.invalidate(sessionId) }
       const { previous: _previous, ...persisted } = await response.json()
-      return Response.json({ ...persisted, mode: state.read(sessionId).mode, ...policy.mainStatus(sessionId), ...(policy.childNotice(sessionId) ? { childNotice: policy.childNotice(sessionId) } : {}), ...(toastOn() ? { decisionToast: true } : {}), autoSupport: { supported, ...(selection ? { provider: selection.provider, model: selection.model } : {}) } })
+      return Response.json({ ...persisted, mode: state.read(sessionId).mode, ...(policy.latestDecision(sessionId) ? { decision: policy.latestDecision(sessionId) } : {}), ...(policy.childNotice(sessionId) ? { childNotice: policy.childNotice(sessionId) } : {}), ...(toastOn() ? { decisionToast: true } : {}), autoSupport: { supported, ...(selection ? { provider: selection.provider, model: selection.model } : {}) } })
     }
     child.provide('autoModelRouting' as never, { call: async (operation: 'state' | 'setMode', payload: unknown) => {
       if (operation !== 'state' && operation !== 'setMode') throw new Error('Unsupported routing operation')
@@ -103,7 +86,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       if (!response.ok) throw new Error('Routing mode request rejected')
       return response.json()
     } } as never)
-    for (const operation of ['state', 'setMode', 'label', 'observe', 'settings', 'saveSettings', 'setKey', 'testDecision', 'decisionModels', 'childRouting'] as const) {
+    for (const operation of ['state', 'setMode', 'settings', 'saveSettings', 'setKey', 'testDecision', 'decisionModels', 'childRouting'] as const) {
       child.effect(() => child.connection.fetch.register({
         path: `/api/auto-model-routing.${operation}`,
         methods: ['POST'], requestBody: 'buffered',
@@ -113,10 +96,6 @@ export function apply(ctx: Context, config: Config = {}): void {
           const wire = body as { type?: unknown; rpcId?: unknown; method?: unknown; payload?: unknown } | null
           const enveloped = wire?.type === 'client-request'
           if (enveloped && (typeof wire.rpcId !== 'string' || wire.method !== `auto-model-routing.${operation}`)) return Response.json({ error: 'invalid RPC envelope' }, { status: 400 })
-          const resolveAgent = async (id: string) => {
-            const result = await child.sessionController.resolveAgent(id as never)
-            return 'agent' in result ? ref(result.agent) : undefined
-          }
           const payload = enveloped ? wire.payload : body
           const response = operation === 'childRouting'
             ? (typeof (payload as { sessionId?: unknown })?.sessionId === 'string'
@@ -124,8 +103,7 @@ export function apply(ctx: Context, config: Config = {}): void {
               : Response.json({ error: 'invalid request' }, { status: 400 }))
             : operation === 'settings' || operation === 'saveSettings' || operation === 'setKey' || operation === 'testDecision' || operation === 'decisionModels'
             ? await hostSettings.endpoint(operation, payload)
-            : operation === 'observe' ? await observeEndpoint(payload, resolveAgent, feedback, () => ctx.logger.warn('auto-model-routing: could not record exposure'))
-            : operation === 'label' ? await labelEndpoint(payload, resolveAgent, feedback) : await modeRequest(operation, payload)
+            : await modeRequest(operation, payload)
           if (!enveloped) return response
           const value = await response.json()
           return Response.json({ type: 'server-response', rpcId: wire.rpcId, result: response.ok ? { ok: true, value } : { ok: false, error: { code: 'invalid-request', message: value.error, details: { issues: value.issues ?? [] } } } })

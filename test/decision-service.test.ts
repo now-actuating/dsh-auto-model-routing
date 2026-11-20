@@ -20,14 +20,14 @@ it('snapshots provider before async credential resolution and never mixes key or
  expect(result).toMatchObject({decisionProvider:'typesafe',decisionModel:'jev-1.13.0',confidence:.83,capabilityConfidence:.61,probabilities:{higher:.9,baseline:.1}})
  expect((result as {probabilities:object}).probabilities).not.toHaveProperty('bad')
  expect(refs).toEqual(['TYPESAFE_API_KEY']);expect(requests[0]?.url).toBe(DECISION_SERVICES.typesafe.endpoint);expect(requests[0]?.init.redirect).toBe('error')
- await client.judgePolicy('public task',new AbortController().signal, 'main', 'depth', DEFAULT_PRESET);expect(refs[1]).toBe('CONCENTRATE_API_KEY')
+ await client.judgePolicy('public task',new AbortController().signal, 'child', 'depth', DEFAULT_PRESET);expect(refs[1]).toBe('CONCENTRATE_API_KEY')
 })
 it('all presets send their own key and model, errors never fall back',async()=>{
  const urls:string[]=[];const refs:string[]=[]
  vi.stubGlobal('fetch',async(url:string)=>{urls.push(url);return Response.json({}, {status:451})})
  for(const provider of ['openrouter','typesafe','concentrate'] as const){
   const client=new JevClient({get:name=>{refs.push(name);return {value:'synthetic-key'}}},undefined,3000,()=>({provider}))
-  expect(await client.judgePolicy('public task',new AbortController().signal, 'main', 'depth', DEFAULT_PRESET)).toEqual({kind:'failed',category:'region-blocked'})
+  expect(await client.judgePolicy('public task',new AbortController().signal, 'child', 'depth', DEFAULT_PRESET)).toEqual({kind:'failed',category:'region-blocked'})
  }
  expect(refs).toEqual(['OPENROUTER_API_KEY','TYPESAFE_API_KEY','CONCENTRATE_API_KEY']);expect(urls).toHaveLength(3)
 })

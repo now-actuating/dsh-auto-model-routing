@@ -46,7 +46,8 @@ it('spec Scenario "Source and copy do not contain version markers"', () => {
   if (!packed) throw new Error('npm pack returned no package metadata')
   const paths = packed.files.map(f => f.path)
   for (const gone of ['lib/router.js', 'lib/judgements.js', 'lib/policy-v2.js', 'lib/policy-v2-rubric.json', 'lib/rubric.json']) expect(paths, gone).not.toContain(gone)
-  for (const kept of ['lib/index.js', 'lib/client.js', 'lib/usage-report.js', 'skills/subagent-model-routing/SKILL.md', 'skills/auto-model-routing-report/SKILL.md']) expect(paths, kept).toContain(kept)
+  for (const kept of ['lib/index.js', 'lib/client.js', 'skills/subagent-model-routing/SKILL.md']) expect(paths, kept).toContain(kept)
+  for (const gone of ['lib/usage-report.js', 'lib/feedback.js', 'skills/auto-model-routing-report/SKILL.md']) expect(paths, gone).not.toContain(gone)
   expect(paths).toContain('lib/presets/reasoning-depth/rubric.json')
  } finally { rmSync(work, { recursive: true, force: true }) }
 
@@ -56,13 +57,13 @@ it('spec Scenario "Source and copy do not contain version markers"', () => {
  expect(literal('policy-v2')).toEqual(["index.ts: 'state/auto-model-routing/policy-v2'"])
  expect(literal('legacy')).toEqual([])
  for (const id of ['rubricVersion', 'pluginVersion']) expect(src.filter(([, t]) => new RegExp(`\\b${id}\\b`).test(t)).map(([f]) => f), id).toEqual([])
- for (const id of ['policyVersion', 'mappingVersion']) expect(src.filter(([, t]) => new RegExp(`\\b${id}\\b`).test(t)).map(([f]) => f).sort(), id).toEqual(['feedback.ts', 'policy-store.ts', 'usage-report.ts'])
+ for (const id of ['policyVersion', 'mappingVersion']) expect(src.filter(([, t]) => new RegExp(`\\b${id}\\b`).test(t)).map(([f]) => f).sort(), id).toEqual(['policy-store.ts'])
 
  // 3. Agent-facing copy: tool description and parameters, and both skills.
  const tool = read(join(pkg, 'src/subagent-tool.ts'))
  const description = /description: '([^']*)'/.exec(tool)![1]!
  const params = [...tool.matchAll(/description: '([^']*)' \}/g)].map(m => m[1]).join('\n')
- const skills = ['subagent-model-routing', 'auto-model-routing-report'].map(s => read(join(pkg, 'skills', s, 'SKILL.md')))
+ const skills = ['subagent-model-routing'].map(s => read(join(pkg, 'skills', s, 'SKILL.md')))
  for (const text of [description, params, ...skills]) for (const word of ['policy-v2', 'legacy', 'original policy', 'old policy', 'rollback']) expect(text, word).not.toContain(word)
 
  // 4. The rule file is byte-identical to the one before the rename.

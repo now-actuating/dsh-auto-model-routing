@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1+mod.4 — 2026-11-20 (fork)
+
+- **AUTO no longer touches the main session.** No decision call, no `selectModel`, no pinned-selection rewrite for main turns in either mode: the main request always carries the user's selection, keeping its prompt cache, adding no per-turn wait and sending nothing out. AUTO now means "route fresh children"; the chip and `defaultMode` are unchanged.
+- Child routing is unchanged (`tools/execute` binding, `agent/created` judgement and selection, `agent/request` verification, resume restore, `route_subagent`). The unsupported-family lock now applies when the chip reads its state or a child is created. A child judgement failure still falls back to DSH defaults with a `childNotice`; it never disables AUTO.
+- `effortCap` applies to children only (key and storage unchanged).
+- Removed: the reply-bar rating button (`assistant-actions` slot), the `label` / `observe` endpoints, `feedback.ts`, the `manual-switch` fact, `usage-report.ts`, the `auto-model-routing-report` skill, `previousTurn` and Jev's main-only scope. The chip panel drops the main output/depth lines and shows only child decisions.
+- Data: session state files (including `disabled`) and `policy-v2` child records keep their schema; an existing `allocation-feedback.jsonl` is neither read nor removed.
+- Tests: main-session suites (`runtime-selection.e2e` and main scenarios) removed; regression tests pin zero Jev calls and the user's effort over AUTO main turns, one Jev call and an `applied` record for an AUTO child, and zero calls in MANUAL.
+
 ## 0.7.1+mod.3 — 2026-11-20 (fork)
 
 - English only: the Chinese UI dictionary is removed (English is registered for both host locale ids and is the unbound fallback); preset metadata, host error messages, hints, tool text, bundled skills, docs, tests and fixtures are in English. Chinese-only READMEs, the Chinese architecture diagram and the Chinese screenshots are removed. The redaction rule still matches Chinese secret labels (written as Unicode escapes). No routing behavior change.

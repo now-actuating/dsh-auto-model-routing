@@ -20,7 +20,7 @@ import { fakeJev, json } from './fake-jev.js'
 const stops: (() => Promise<void>)[] = []
 afterEach(async () => { while (stops.length) await stops.pop()!() })
 
-// Real plugin + real AgentLoop. The official selection is the agent's own model (DSH 0.2.2): a recorded pick, else the last request header.
+// Real plugin + real AgentLoop: AUTO never judges or rewrites a main session (0.7.1+mod.4). The official selection is the agent's own model (DSH 0.2.2): a recorded pick, else the last request header.
 async function harness() {
  const ctx = new Context()
  const jev = await fakeJev(json(200, { answers: { depth: { choice: 'higher' } } }))
@@ -58,41 +58,42 @@ async function harness() {
  stops.push(async () => { await handle.dispose(); await fork.dispose(); await jev.close() })
  const call = async (op: string, body: unknown) => (await routes.get(`/api/auto-model-routing.${op}`)!.fetch(new Request('http://x/api', { method: 'POST', body: JSON.stringify(body) }))).json()
  const run = async (text: string) => { agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })); await agent.whenIdle() }
- return { calls, run, jev, selections, sessionId: agent.id, setMode: (mode: 'AUTO' | 'MANUAL') => call('setMode', { sessionId: agent.id, mode }), pick: (effort: string) => agent.model.select({ provider: 'test', model: 'claude-opus-5-5', reasoningEffort: ReasoningEffortId(effort) }) }
+ const headers = () => agent.session.snapshotEvents().filter(e => e.type === 'request/header').map(e => (e.data as { header?: { config?: { provider?: string; model?: string; reasoningEffort?: string } } }).header?.config)
+ return { calls, run, jev, selections, headers, sessionId: agent.id, setMode: (mode: 'AUTO' | 'MANUAL') => call('setMode', { sessionId: agent.id, mode }), pick: (effort: string) => agent.model.select({ provider: 'test', model: 'claude-opus-5-5', reasoningEffort: ReasoningEffortId(effort) }) }
 }
 
-it('spec Scenario "AUTO results synchronize to the official selection"', async () => {
+it('spec Scenario "AUTO main session: no decision call and the user\'s effort on every request" (T1)', async () => {
  const h = await harness()
  await h.setMode('AUTO')
  await h.run('Investigate several modules')
  await h.run('Keep investigating')
- expect(h.calls.slice(-2).map(c => c.reasoningEffort)).toEqual(['high', 'high'])
- expect(h.selections).toEqual([{ sessionId: h.sessionId, provider: 'test', model: 'claude-opus-5-5', reasoningEffort: 'high' }])
+ await h.run('Now refactor the whole subsystem')
+ expect(h.jev.bodies).toHaveLength(0)
+ expect(h.selections).toEqual([])
+ expect(h.calls).toHaveLength(3)
+ expect(h.calls.map(c => c.reasoningEffort)).toEqual(['medium', 'medium', 'medium'])
+ const headers = h.headers()
+ expect(headers.length).toBeGreaterThan(0)
+ for (const config of headers) expect(config).toMatchObject({ provider: 'test', model: 'claude-opus-5-5', reasoningEffort: 'medium' })
 })
-it('spec Scenario "Switching to MANUAL does not restore the prior selection"', async () => {
+it('spec Scenario "A user pick in AUTO is used as is"', async () => {
  const h = await harness()
+ await h.setMode('AUTO')
  await h.run('A routine question')
- // 0.2.2: a request header retires the matching pending selection itself (no controller consume step).
- await h.setMode('AUTO')
+ h.pick('xhigh')
  await h.run('Investigate several modules')
- expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
- await h.setMode('MANUAL')
+ h.pick('low')
  await h.run('Continue')
- await h.run('Continue again')
- // No restore: the official selection keeps high and MANUAL passes it through.
- expect(h.calls.slice(-2).map(c => c.reasoningEffort)).toEqual(['high', 'high'])
- expect(h.jev.bodies).toHaveLength(1)
+ expect(h.calls.map(c => c.reasoningEffort)).toEqual(['medium', 'xhigh', 'low'])
+ for (const config of h.headers().slice(-1)) expect(config?.reasoningEffort).toBe('low')
+ expect(h.jev.bodies).toHaveLength(0)
+ expect(h.selections).toEqual([])
 })
-it('spec Scenario "AUTO judgment overrides a pending manual selection"', async () => {
+it('spec Scenario "MANUAL main session passes through unchanged"', async () => {
  const h = await harness()
- await h.setMode('AUTO')
  await h.run('Investigate several modules')
- // A pick made during AUTO is replaced by the next AUTO decision (synced to the official selection).
- h.pick('medium')
- await h.run('Investigate several modules')
- expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
- expect(h.selections.at(-1)).toMatchObject({ reasoningEffort: 'high' })
- await h.setMode('MANUAL')
  await h.run('Continue')
- expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
+ expect(h.calls.map(c => c.reasoningEffort)).toEqual(['medium', 'medium'])
+ expect(h.jev.bodies).toHaveLength(0)
+ expect(h.selections).toEqual([])
 })

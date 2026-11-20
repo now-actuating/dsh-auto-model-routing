@@ -12,10 +12,10 @@ export declare const chipOrder = -10;
 /** Panel visibility: entering or focusing the chip (or its panel) opens it; leaving or blurring closes it. */
 export type PanelEvent = 'enter' | 'focus' | 'leave' | 'blur';
 export declare const panelOpenAfter: (event: PanelEvent) => boolean;
-/** Latest Jev decision as returned by the state endpoint when the hint switch is on. */
+/** Latest child Jev decision as returned by the state endpoint (main sessions are never judged). */
 export interface Decision {
     id: number;
-    source: 'main' | 'subagent';
+    source: 'subagent';
     tier?: string;
     effort: string;
     model?: string;

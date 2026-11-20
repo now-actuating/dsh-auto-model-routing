@@ -11,8 +11,8 @@ export const chipOrder = -10
 export type PanelEvent = 'enter' | 'focus' | 'leave' | 'blur'
 export const panelOpenAfter = (event: PanelEvent): boolean => event === 'enter' || event === 'focus'
 
-/** Latest Jev decision as returned by the state endpoint when the hint switch is on. */
-export interface Decision { id: number; source: 'main' | 'subagent'; tier?: string; effort: string; model?: string; confidence?: number; probabilities?: Record<string, number>; ms: number; depth: string; capability?: string; capabilityConfidence?: number; capabilityProbabilities?: Record<string, number>; preset?: string; decisionProvider?: string; decisionModel?: string; provider?: string; status?: string }
+/** Latest child Jev decision as returned by the state endpoint (main sessions are never judged). */
+export interface Decision { id: number; source: 'subagent'; tier?: string; effort: string; model?: string; confidence?: number; probabilities?: Record<string, number>; ms: number; depth: string; capability?: string; capabilityConfidence?: number; capabilityProbabilities?: Record<string, number>; preset?: string; decisionProvider?: string; decisionModel?: string; provider?: string; status?: string }
 export interface Toast { id: number; lines: string[] }
 const pct = (v: number) => `${Math.round(v * 100)}%`
 export const TOAST_MS = 3000
@@ -25,7 +25,7 @@ const spreadText = (order: string[], values?: Record<string, number>) => {
 /** Shared by the persistent hover panel and transient decision hint. */
 export function toastText(d: Decision): string[] {
   return [
-    `${d.source === 'main' ? t('sourceMain') : t('sourceChild')} · ${d.status === 'applied' ? t('statusApplied') : d.status === 'failed' ? t('statusFailed') : d.status === 'unsupported' ? t('statusUnsupported') : t('statusPending')}`,
+    `${t('sourceChild')} · ${d.status === 'applied' ? t('statusApplied') : d.status === 'failed' ? t('statusFailed') : d.status === 'unsupported' ? t('statusUnsupported') : t('statusPending')}`,
     // Only judged decisions carry a preset; an unregistered id (e.g. after a downgrade) is shown verbatim.
     ...(d.preset ? [t('presetLine', { preset: resolvePreset(d.preset).id === d.preset ? resolvePreset(d.preset).title : d.preset })] : []),
     ...(d.capability ? [t('capabilityLine', { capability: d.capability, confidence: d.capabilityConfidence === undefined ? t('notProvided') : pct(d.capabilityConfidence) })] : []),

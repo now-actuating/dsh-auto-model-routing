@@ -37,6 +37,6 @@ export declare class JevClient {
     readonly url: string;
     constructor(env: CredentialSource, base?: string, timeoutMs?: number | (() => number), service?: (() => DecisionConfig | undefined) | undefined);
     /** One request, no retry. Never throws; never returns the body or the key. `state` comes from `buildState`. */
-    judgePolicy(state: string, signal: AbortSignal, scope: 'main' | 'child', dimensions: 'both' | 'capability' | 'depth', preset: Preset): Promise<PolicyResult>;
+    judgePolicy(state: string, signal: AbortSignal, _scope: 'child', dimensions: 'both' | 'capability' | 'depth', preset: Preset): Promise<PolicyResult>;
     private decide;
 }

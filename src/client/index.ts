@@ -9,8 +9,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { callRouting, chipOrder, nextToast, panelOpenAfter, TOAST_MS, toastText, type Decision, type PanelEvent, type Rpc, type Toast } from './control.js'
 import type { JevCategory } from '../hints.js'
-import { IconInfoOutlineRegular, IconGaugeOutlineRegular, Menu, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import { LabelButton, type LabelUi } from './label.js'
+import { IconInfoOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import * as settingsUi from '@deepseek-ai/dsh-client-ui-primitives'
 import { RoutingSettings } from './settings-section.js'
 import { registry } from '../strategies/index.js'
@@ -22,9 +21,6 @@ import { installRoutingNavIcon } from './nav-icon.js'
 interface AutoSupport { supported: boolean; provider?: string; model?: string }
 interface View { childNotice?: { id: number; childId: string; reason: string; at: number };
   mode: 'AUTO' | 'MANUAL'
-  depth?: string
-  effort?: string
-  reason?: string
   disabled?: { category: JevCategory; at: number }
   decision?: Decision
   decisionToast?: boolean
@@ -88,6 +84,7 @@ export function RoutingChip({ sessionId, rpc, initialView, initiallyOpen = false
     if (rect && rect.width > 0) anchor.current = { left: rect.left + rect.width / 2, top: rect.top - 6 }
   }
   // The first poll of each session only primes `seen`: an old decision is never announced on mount or session switch.
+  // Only child decisions reach the view (the main session is never judged), so only those are announced.
   const seen = useRef<number | undefined>(undefined)
   const primed = useRef(false)
   const viewSession = useRef<string | undefined>(undefined)
@@ -194,11 +191,10 @@ export function RoutingChip({ sessionId, rpc, initialView, initiallyOpen = false
       ]
     : [
         h('p', { key: 'title' }, h('strong', null, view?.mode === 'AUTO' ? t('panelAutoTitle') : t('panelManualTitle'))),
-        h('p', { key: 'output' }, t('panelOutput', { effort: view?.effort ?? t('panelUnchanged'), reason: view?.reason ?? t('notDecided') })),
+        h('p', { key: 'scope', className: 'amr-muted' }, view?.mode === 'AUTO' ? t('panelAutoScope') : t('panelManualScope')),
         view?.decision && h('div', { key: 'latest', className: 'amr-latest' },
           h('p', null, h('strong', null, t('panelLatest'))),
           ...toastText(view.decision).map((line, index) => h('p', { key: index, className: index ? 'amr-muted' : undefined }, line))),
-        h('p', { key: 'depth', className: 'amr-muted' }, t('panelDepth', { depth: view?.depth ?? t('panelNoJudgment') })),
         off && h('p', { key: 'disabled', role: 'status', className: 'amr-error' }, t('panelDisabled', { category: off.category, hint: hint ?? off.category, at: new Date(off.at).toLocaleString() })),
         h('p', { key: 'data', className: 'amr-muted' }, t('panelData')),
         view?.childNotice && h('p', { key: 'notice', role: 'status', className: 'amr-muted' }, noticeText(view.childNotice)),
@@ -226,14 +222,12 @@ export function RoutingChip({ sessionId, rpc, initialView, initiallyOpen = false
   )
 }
 
-const labelUi = { Tooltip, Menu, Icon: IconGaugeOutlineRegular } as unknown as LabelUi
-
 export function apply(ctx: Context): void {
   // Return the locale disposer: a client bundle rebuilt while the page is open
   // re-applies this entry against the same long-lived locale service, which
   // refuses a namespace it already holds ("already has locale"). Leaking the
   // old dictionaries made every hot reload fail and took the AUTO chip, the
-  // settings section and the label button down until a page reload.
+  // settings section down until a page reload.
   ctx.effect(() => ctx.locale.register(NS, { zh: en, en }), 'auto-model-routing: dictionaries')
   bindLocale(ctx.locale.bind(NS) as unknown as Parameters<typeof bindLocale>[0])
   // Optional acceleration only: the official picker's per-session store triggers an immediate state read.
@@ -257,11 +251,6 @@ export function apply(ctx: Context): void {
     inject: () => ({ rpc: ctx.connection.rpc as unknown as Rpc, ui: settingsUi }),
   }, RoutingSettings))
   ctx.effect(() => typeof document === 'undefined' ? () => {} : installRoutingNavIcon(document), 'auto-model-routing: settings navigation icon')
-  // Reply-bar allocation feedback, after the official feedback (order 10); rendered only on bound replies.
-  ctx.slots.inject('conversation.chat.assistant-actions', () => ctx.slots.register({
-    name: 'conversation.chat.assistant-actions', id: 'auto-model-routing-label', order: 20,
-    inject: (sessionId) => ({ sessionId, rpc: ctx.connection.rpc as unknown as Rpc, ui: labelUi }),
-  }, LabelButton as never))
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
     name: 'conversation.input.right', id: 'auto-model-routing', order: chipOrder,
     inject: (sessionId): Props => ({ sessionId, rpc: ctx.connection.rpc as unknown as Rpc, subscribeSelection }),

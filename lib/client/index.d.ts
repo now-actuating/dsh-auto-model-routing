@@ -14,9 +14,6 @@ interface View {
         at: number;
     };
     mode: 'AUTO' | 'MANUAL';
-    depth?: string;
-    effort?: string;
-    reason?: string;
     disabled?: {
         category: JevCategory;
         at: number;

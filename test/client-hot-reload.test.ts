@@ -46,12 +46,12 @@ it('A rebuilt client bundle can be applied again after its locale registration i
   const locale = strictLocale()
   const first = generation(locale)
   first.apply()
-  expect(first.registered).toHaveLength(3)
+  expect(first.registered).toHaveLength(2)
   first.teardown()
 
   const second = generation(locale)
   expect(() => second.apply()).not.toThrow()
-  expect(second.registered).toHaveLength(3)
+  expect(second.registered).toHaveLength(2)
   second.teardown()
 })
 

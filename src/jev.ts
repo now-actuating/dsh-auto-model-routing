@@ -28,10 +28,11 @@ export class JevClient {
   }
 
   /** One request, no retry. Never throws; never returns the body or the key. `state` comes from `buildState`. */
-  async judgePolicy(state: string, signal: AbortSignal, scope: 'main' | 'child', dimensions: 'both' | 'capability' | 'depth', preset: Preset): Promise<PolicyResult> {
+  async judgePolicy(state: string, signal: AbortSignal, _scope: 'child', dimensions: 'both' | 'capability' | 'depth', preset: Preset): Promise<PolicyResult> {
+    // Only fresh children (and their preview / the connection test) are judged; main sessions never call Jev.
     // The caller captured `preset` once for this judgement; questions and choice checks both use it.
     const policyQuestions = preset.rubric
-    const questions = scope === 'main' || dimensions === 'depth' ? { depth: policyQuestions.depth }
+    const questions = dimensions === 'depth' ? { depth: policyQuestions.depth }
       : dimensions === 'capability' ? { capability: policyQuestions.capability } : policyQuestions
     const result = await this.decide(state, signal, questions)
     if (result.kind !== 'ok') return result

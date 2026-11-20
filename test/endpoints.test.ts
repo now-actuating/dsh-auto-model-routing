@@ -1,7 +1,6 @@
 import { expect, it } from 'vitest'
-import { endpoint, labelEndpoint } from '../src/endpoints.js'
+import { endpoint } from '../src/endpoints.js'
 import { RoutingState, type SessionState } from '../src/state.js'
-import type { FeedbackBook } from '../src/feedback.js'
 function fixture(){
  const disk=new Map<string,SessionState>();const state=new RoutingState({get:id=>disk.get(id),set:(id,value)=>{disk.set(id,value)}})
  const agents=[{id:'S1'},{id:'S2'},{id:'child',origin:'subagent'}]
@@ -27,16 +26,4 @@ it('spec Scenario "Only the target session is modified"',async()=>{
  await endpoint('setMode',{sessionId:'S1',mode:'AUTO'},resolve,state)
  expect((await (await endpoint('state',{sessionId:'S1'},resolve,state)).json()).disabled).toBeUndefined()
  expect(state.read('S2')).toEqual(before)
-})
-it('label_rejects_invalid_and_returns_empty_for_unbound',async()=>{
- const {resolve}=fixture()
- const writes:unknown[]=[]
- const book={lookup:(sessionId:string,messageId:string)=>sessionId==='S1'&&messageId==='m2'?{sessionId,messageId,decisionId:1,depth:'higher',model:'claude-opus-5-5',effort:'high'}:undefined,set:(...args:unknown[])=>{writes.push(args)}} as unknown as FeedbackBook
- for(const body of [{sessionId:'S1',messageId:'m2',label:'simple'},{sessionId:'S1',messageId:'m2',feedback:'huge'},{sessionId:'child',messageId:'m2'},{sessionId:'S1',messageId:42},{messageId:'m2'},null]){
-  const response=await labelEndpoint(body,resolve,book)
-  expect(response.status,JSON.stringify(body)).toBeGreaterThanOrEqual(400);expect(response.status).toBeLessThan(500)
- }
- const unknown=await labelEndpoint({sessionId:'S1',messageId:'m-unknown'},resolve,book)
- expect(unknown.status).toBe(200);expect(await unknown.json()).toEqual({})
- expect(writes).toEqual([])
 })

@@ -5,10 +5,9 @@ import { PRESETS } from '../src/presets/index.js'
 
 const skillPath = resolve(import.meta.dirname, '../skills/subagent-model-routing/SKILL.md')
 const skill = () => existsSync(skillPath) ? readFileSync(skillPath, 'utf8') : ''
-it('report_skill_is_on_demand_only', () => {
- const text = readFileSync(resolve(import.meta.dirname, '../skills/auto-model-routing-report/SKILL.md'), 'utf8')
- const [, front = '', body = ''] = text.split(/^---$/m)
- for (const part of [front, body]) { expect(part).toContain('Use only when the user explicitly asks'); expect(part).toMatch(/Do not run it proactively[^.\n]*create scheduled tasks/i) }
+it('only the delegation skill is bundled (report skill removed in 0.7.1+mod.4)', () => {
+ expect(existsSync(resolve(import.meta.dirname, '../skills/auto-model-routing-report'))).toBe(false)
+ expect(readdirSync(resolve(import.meta.dirname, '../skills'))).toEqual(['subagent-model-routing'])
  const files = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8')).files as string[]
  expect(files).toEqual(expect.arrayContaining(['lib', 'skills']))
  expect(files).not.toContain('scripts/label-report.mjs')

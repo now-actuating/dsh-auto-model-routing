@@ -7,7 +7,7 @@ import { RoutingChip } from '../src/client/index.js'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const on = { decisionToast: true }
-const decision = (id: number) => ({ id, source: 'main', tier: 'higher', depth: 'higher', effort: 'xhigh', status: 'applied', confidence: 0.9, probabilities: { baseline: 0.1, higher: 0.9 }, ms: 500, provider: 'claude', model: 'claude-opus-5-5', decisionProvider: 'openrouter', decisionModel: 'typesafe/jev-1.13' })
+const decision = (id: number) => ({ id, source: 'subagent', tier: 'higher', depth: 'higher', effort: 'xhigh', status: 'applied', confidence: 0.9, probabilities: { baseline: 0.1, higher: 0.9 }, ms: 500, provider: 'claude', model: 'claude-opus-5-5', decisionProvider: 'openrouter', decisionModel: 'typesafe/jev-1.13' })
 let root: Root, host: HTMLElement
 beforeEach(() => { vi.useFakeTimers(); host = document.createElement('div'); document.body.append(host); root = createRoot(host) })
 afterEach(() => { act(() => root.unmount()); host.remove(); vi.useRealTimers() })
@@ -28,11 +28,11 @@ it('spec Scenario "The notification appears once and disappears after three seco
  await mount('S', rpc)
  expect(toast()).toBeNull()            // id 3 existed before mounting
  await poll(); expect(toast()).toBeNull() // same id again
- await poll(); expect(toast()).toContain('main session · applied')
+ await poll(); expect(toast()).toContain('subtask · applied')
  expect(toast()).toContain('investment distribution: baseline 10% / higher 90%')
  expect(toast()).not.toContain('probability of success')
  await act(async () => { await vi.advanceTimersByTimeAsync(2900) })
- expect(toast()).toContain('main session · applied')
+ expect(toast()).toContain('subtask · applied')
  await act(async () => { await vi.advanceTimersByTimeAsync(100) })
  expect(toast()).toBeNull()
  await poll(); expect(toast()).toBeNull() // id 4 never re-shows
@@ -50,7 +50,7 @@ it('toast still disappears when the decision vanishes before it expires', async 
  const queue = [{ mode: 'AUTO' }, { ...on, mode: 'AUTO', decision: decision(5) }]
  const rpc = { call: async (_c: string, endpoint: string) => ({ ok: true, value: endpoint.endsWith('setMode') ? { mode: 'MANUAL' } : (queue.length > 1 ? queue.shift() : queue[0]) }) }
  await mount('S', rpc)
- await poll(); expect(toast()).toContain('main session · applied')
+ await poll(); expect(toast()).toContain('subtask · applied')
  // Toggling within the second returns a view without `decision` (e.g. switch off); the hint must still go away.
  await act(async () => { host.querySelector('button')!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
  await act(async () => { await vi.advanceTimersByTimeAsync(3100) })
@@ -66,7 +66,7 @@ it('toast is visible while the composer hides the chip', async () => {
  await act(async () => { root.render(createElement(RoutingChip, { sessionId: 'S', rpc: rpc as never })) })
  await poll()
  const el = document.body.querySelector('.amr-toast')
- expect(el?.textContent).toContain('main session · applied')
+ expect(el?.textContent).toContain('subtask · applied')
  expect(hidden.contains(el)).toBe(false)
 })
 

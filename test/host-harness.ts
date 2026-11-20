@@ -92,7 +92,7 @@ export async function harness(reply: Reply, options: { reject?: () => boolean; s
   },
  } as never)
  let routing = await ctx.plugin(plugin, { home, jevBase: jev.base, jevTimeoutMs: 300 })
- await expect.poll(() => routes.size).toBe(10)
+ await expect.poll(() => routes.size).toBe(8)
  const initial = { provider: 'test', model: options.model ?? 'claude-opus-5-5', reasoningEffort: ReasoningEffortId('medium') }
  const handle = await ctx.agents.create({
   ...(options.seed ? { seed: options.seed } : {}),
@@ -121,7 +121,7 @@ export async function harness(reply: Reply, options: { reject?: () => boolean; s
  const run = async (text: string) => { agent!.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })); await agent!.whenIdle() }
  cleanup = async () => { for (const e of extra.reverse()) await e.dispose(); await handle.dispose(); await routing.dispose(); for (const f of forks.reverse()) await f.dispose(); await jev.close() }
  // Simulate a Host restart for this plugin: all its memory is dropped, only the state directory remains.
- const restart = async () => { await routing.dispose(); routing = await ctx.plugin(plugin, { home, jevBase: jev.base, jevTimeoutMs: 300 }); await expect.poll(() => routes.size).toBe(10) }
+ const restart = async () => { await routing.dispose(); routing = await ctx.plugin(plugin, { home, jevBase: jev.base, jevTimeoutMs: 300 }); await expect.poll(() => routes.size).toBe(8) }
  const toast = (on: boolean) => { const dir = join(home, 'plugins/dsh-auto-model-routing'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'config.json'), JSON.stringify({ decisionToast: on })) }
  return { ctx, jev, calls, agent, selection, invoke, routes, run, home, toast, selections, restart, configure, holdCredentials, createAgent, setMode: (mode: string) => invoke('setMode', { sessionId: agent!.id, mode }) }
 }

@@ -1,18 +1,14 @@
-import type { FeedbackBook } from './feedback.js';
 import type { Context } from '@deepseek-ai/cordis';
-import type { JevClient, Depth } from './jev.js';
+import type { JevClient } from './jev.js';
 import { type Registry } from './strategies/index.js';
 import { PolicyStore } from './policy-store.js';
 import type { RoutingState } from './state.js';
 import type { RoutingCatalog, Settings } from './settings-contract.js';
+/**
+ * AUTO routes fresh children only. Main sessions are never judged and never rewritten: no decision call, no model selection,
+ * so the main request keeps the user's choice (and its prompt cache) on every turn.
+ */
 export declare function policyHost(ctx: Context, deps: {
-    selectModel: (request: {
-        sessionId: string;
-        provider: string;
-        model: string;
-        reasoningEffort: string;
-    }) => Promise<unknown>;
-    feedback: FeedbackBook;
     jev: JevClient;
     state: RoutingState;
     store: PolicyStore;
@@ -20,7 +16,6 @@ export declare function policyHost(ctx: Context, deps: {
     catalog: (provider?: string) => Promise<RoutingCatalog>;
     registry?: Registry;
 }): {
-    appliedDecision: (id: string) => number | undefined;
     invalidate: (id: string) => void;
     childNotice: (rootId: string) => {
         id: number;
@@ -75,29 +70,25 @@ export declare function policyHost(ctx: Context, deps: {
         } | undefined;
         reason?: string | undefined;
     } | undefined;
-    mainStatus: (id: string) => {
-        decision?: {
-            id: number;
-            source: "main" | "subagent";
-            tier: string;
-            depth: string;
-            effort: string;
-            status: string;
-            ms: number;
-            decisionProvider: string;
-            decisionModel: string;
-            capability?: string | undefined;
-            model?: string | undefined;
-            provider?: string | undefined;
-            confidence?: number | undefined;
-            capabilityConfidence?: number | undefined;
-            probabilities?: Record<string, number> | undefined;
-            capabilityProbabilities?: Record<string, number> | undefined;
-        } & {
-            preset?: string;
-        };
-        depth?: Depth;
-        effort?: string;
-        reason?: string;
-    } | undefined;
+    /** The root's latest child decision (AUTO only); the main session itself has no decision. */
+    latestDecision: (id: string) => ({
+        id: number;
+        source: "main" | "subagent";
+        tier: string;
+        depth: string;
+        effort: string;
+        status: string;
+        ms: number;
+        decisionProvider: string;
+        decisionModel: string;
+        capability?: string | undefined;
+        model?: string | undefined;
+        provider?: string | undefined;
+        confidence?: number | undefined;
+        capabilityConfidence?: number | undefined;
+        probabilities?: Record<string, number> | undefined;
+        capabilityProbabilities?: Record<string, number> | undefined;
+    } & {
+        preset?: string;
+    }) | undefined;
 };

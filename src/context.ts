@@ -13,34 +13,18 @@ export function redact(text: string): string {
   return RULES.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), text)
 }
 
-interface HistoryMessage { role: string; source?: { kind: string }; content: readonly { type: string; text?: string }[] }
-const textOf = (message: HistoryMessage): string =>
-  message.content.filter(block => block.type === 'text').map(block => block.text ?? '').join('\n')
-
-/** The previous turn, read from history before this turn's messages enter. Raw text: `buildState` redacts. */
-export function previousTurn(messages: readonly HistoryMessage[]): { user?: string; assistant?: string } {
-  const user = messages.findLast(message => message.source?.kind === 'user')
-  const assistant = messages.findLast(message => message.role === 'assistant' && message.content.some(block => block.type === 'text' && block.text))
-  return { ...(user ? { user: textOf(user) } : {}), ...(assistant ? { assistant: textOf(assistant) } : {}) }
-}
-
-const EXPLAIN = 'Earlier conversation is shown so you can tell what the new message asks for. Rate the work the assistant must do next in response to the new message, not the earlier work.'
-
-/** The Jev `state`; every section is redacted, then cut. The fixed first line keeps the request bytes stable. */
-/** Fixed call-path lines; they state the path only and never claim whether anyone reviews. */
+/** Fixed call-path lines; they state the path only and never claim whether anyone reviews. The runtime only judges
+ * delegated subtasks; `main` stays for the offline eval cases (`eval/cases.json`). */
 export const EXECUTION_LINES = {
   main: 'Execution: main conversation.',
   delegated: 'Execution: delegated subtask; the result returns to an orchestrating agent.',
 } as const
 export type Execution = keyof typeof EXECUTION_LINES
 
-export function buildState(input: { prevUser?: string | undefined; prevAssistant?: string | undefined; text: string; execution?: Execution | undefined }): string {
+/** The Jev `state` of one subtask; the task is redacted, then cut. The fixed first line keeps the request bytes stable. */
+export function buildState(input: { text: string; execution?: Execution | undefined }): string {
   const lines = ['Previous user-turn tier: none']
   if (input.execution) lines.push(EXECUTION_LINES[input.execution])
-  const context = input.prevUser !== undefined || input.prevAssistant !== undefined
-  if (context) lines.push(EXPLAIN)
-  if (input.prevUser !== undefined) lines.push('Previous user message (truncated):', redact(input.prevUser).slice(0, 500))
-  if (input.prevAssistant !== undefined) lines.push('Previous assistant reply (last part):', redact(input.prevAssistant).slice(-1200))
-  lines.push(context ? 'New user message:' : 'User message:', redact(input.text).slice(0, 8000))
+  lines.push('User message:', redact(input.text).slice(0, 8000))
   return lines.join('\n')
 }

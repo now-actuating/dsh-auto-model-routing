@@ -15,7 +15,7 @@ it('asks independent dimensions in one call', async () => {
   expect(server.bodies).toHaveLength(1)
   expect(server.bodies[0]).toMatchObject({ questions })
   server.set(json(200, { answers: { depth: { choice: 'higher' } } }))
-  expect(await client.judgePolicy('main', new AbortController().signal, 'main', 'depth', DEFAULT_PRESET)).toMatchObject({ kind: 'ok', depth: 'higher' })
+  expect(await client.judgePolicy('main', new AbortController().signal, 'child', 'depth', DEFAULT_PRESET)).toMatchObject({ kind: 'ok', depth: 'higher' })
   expect((server.bodies[1] as { questions: unknown }).questions).not.toHaveProperty('capability')
 })
 it('rejects missing dimensions, invalid choices, and maps failure without a fallback', async () => {

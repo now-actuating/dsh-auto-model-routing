@@ -1,6 +1,6 @@
 /**
  * Copy dictionaries for the AUTO client UI (composer chip, decision panel,
- * feedback label and the settings section).
+ * and the settings section).
  *
  * The plugin keeps a module-scoped translator instead of threading `t`
  * through every helper, `apply()` binds the host translator once, and before
@@ -22,13 +22,10 @@ export declare const en: {
     strategyEvidence: string;
     strategySources: string;
     routingFailed: string;
-    feedbackFailed: string;
     notProvided: string;
-    notDecided: string;
     toBeDetermined: string;
     unknownService: string;
     unknownModel: string;
-    sourceMain: string;
     sourceChild: string;
     statusApplied: string;
     statusFailed: string;
@@ -40,16 +37,6 @@ export declare const en: {
     presetLine: string;
     depthSpread: string;
     confidenceFormula: string;
-    feedbackAppropriate: string;
-    feedbackTooHigh: string;
-    feedbackTooLow: string;
-    feedbackUnknown: string;
-    feedbackSummary: string;
-    feedbackAsk: string;
-    feedbackYour: string;
-    feedbackTitle: string;
-    feedbackClear: string;
-    feedbackNotSaved: string;
     navLabel: string;
     strategySummary: string;
     strategyIntro: string;
@@ -137,9 +124,9 @@ export declare const en: {
     lockedHint: string;
     panelAutoTitle: string;
     panelManualTitle: string;
-    panelOutput: string;
     panelLatest: string;
-    panelDepth: string;
+    panelAutoScope: string;
+    panelManualScope: string;
     panelDisabled: string;
     panelData: string;
     switchTitleLocked: string;
@@ -164,8 +151,6 @@ export declare const en: {
     hintUnavailable: string;
     hintTimeout: string;
     hintInvalidResponse: string;
-    panelUnchanged: string;
-    panelNoJudgment: string;
     modeLoading: string;
 };
 /** The key union, derived from the English reference set. */
@@ -185,7 +170,7 @@ export declare function interpolate(template: string, params?: Params): string;
 export declare function t(key: AutoKey, params?: Params): string;
 declare module '@deepseek-ai/dsh-client-ui-slots' {
     interface LocaleNamespaceMap {
-        /** The AUTO client copy (chip, panel, feedback label and settings section). */
+        /** The AUTO client copy (chip, panel and settings section). */
         [NS]: AutoKey;
     }
 }

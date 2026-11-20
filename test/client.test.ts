@@ -20,11 +20,21 @@ it('spec Scenario "Switching modes only calls the plugin endpoint"',async()=>{
  await callRouting(rpc,'S')
  expect(calls[1]).toEqual(['/api','auto-model-routing.state',{sessionId:'S'}])
 })
-it('spec Scenario "The panel shows this turn without historical state"',()=>{
+it('spec Scenario "The panel shows only subtask routing, never a main-session decision"',()=>{
+ // Old Host views may still carry main fields; the panel no longer renders them.
  const view={mode:'AUTO',depth:'higher',effort:'high',reason:'jev'}
  const markup=renderToStaticMarkup(createElement(RoutingChip,{sessionId:'S',rpc:{call:async()=>({ok:true})},initialView:view as never,initiallyOpen:true})).replace(/<[^>]+>/g,' ')
- for(const text of ['high','jev','AUTO · higher','This turn plugin output']) expect(markup).toContain(text)
+ for(const text of ['AUTO: subtask routing','the main session keeps your model and effort unchanged']) expect(markup).toContain(text)
+ for(const text of ['This turn plugin output','AUTO · higher','jev']) expect(markup).not.toContain(text)
+ const manual=renderToStaticMarkup(createElement(RoutingChip,{sessionId:'S',rpc:{call:async()=>({ok:true})},initialView:{mode:'MANUAL'},initiallyOpen:true})).replace(/<[^>]+>/g,' ')
+ expect(manual).toContain('No subtask routing')
  expect(markup).not.toContain('anchor')
+})
+it('spec Scenario "No reply-bar rating button is registered"',()=>{
+ const registrations: {name:string}[] = []
+ const ctx={effect:(callback:()=>unknown)=>callback(),locale:fakeLocale('zh').service,slots:{inject:(_name:string,callback:()=>void)=>callback(),register:(options:{name:string})=>{registrations.push(options);return ()=>{}}}}
+ apply(ctx as never)
+ expect(registrations.map(r=>r.name).sort()).toEqual(['conversation.input.right','settings.section'])
 })
 it('spec Scenario "The chip and panel show the disabled state"',()=>{
  const base={mode:'MANUAL' as const}
@@ -66,7 +76,7 @@ it('spec Scenario "Chip styling and hover panel"',()=>{
  expect((['enter','focus','leave','blur'] as const).map(panelOpenAfter)).toEqual([true,true,false,false])
 })
 it('decision_hint_shows_once',()=>{
- const d={id:7,source:'main' as const,depth:'higher',effort:'high',status:'applied',confidence:0.9,ms:500}
+ const d={id:7,source:'subagent' as const,depth:'higher',effort:'high',status:'applied',confidence:0.9,ms:500}
  let seen:number|undefined
  const shown=nextToast(seen,d)
  expect(shown).toMatchObject({id:7});seen=shown!.id
@@ -74,14 +84,14 @@ it('decision_hint_shows_once',()=>{
  expect(nextToast(seen,undefined)).toBeUndefined()
  const markup=renderToStaticMarkup(createElement(RoutingChip,{sessionId:'S',rpc:{call:async()=>({ok:true})},initialView:{mode:'AUTO'},initialToast:{id:7,lines:toastText(d)}}))
  expect(markup).toContain('role="status"')
- expect(markup).toContain('main session · applied')
+ expect(markup).toContain('subtask · applied')
  expect(markup).toContain('pointer-events:none')
 })
 it('spec Scenario "The hover panel shows the latest decision distribution"',()=>{
  const render=(view:object)=>renderToStaticMarkup(createElement(RoutingChip,{sessionId:'S',rpc:{call:async()=>({ok:true})},initialView:view as never,initiallyOpen:true})).replace(/<[^>]+>/g,' ')
- const panel=render({mode:'AUTO',decision:{id:1,source:'main',tier:'higher',depth:'higher',status:'applied',probabilities:{baseline:0.3,higher:0.7},provider:'claude',model:'claude-opus-5-5',effort:'high',ms:780,decisionProvider:'openrouter',decisionModel:'typesafe/jev-1.13'}})
+ const panel=render({mode:'AUTO',decision:{id:1,source:'subagent',tier:'higher',depth:'higher',status:'applied',probabilities:{baseline:0.3,higher:0.7},provider:'claude',model:'claude-opus-5-5',effort:'high',ms:780,decisionProvider:'openrouter',decisionModel:'typesafe/jev-1.13'}})
  expect(panel).toContain('Latest decision')
- expect(panel).toContain('main session · applied')
+ expect(panel).toContain('subtask · applied')
  expect(panel).toContain('investment distribution: baseline 30% / higher 70%')
  expect(render({mode:'AUTO'})).not.toContain('Latest decision')
 })
@@ -95,9 +105,9 @@ it('locked_chip_explains_the_claude_gpt_support_scope',()=>{
  expect(markup).toContain('https://github.com/prgrmrwy/dsh-auto-model-routing')
  expect(markup).toContain('target="_blank"')
  expect(markup).not.toContain('amr-swap')
- expect(markup).not.toContain('Click to toggle automatic reasoning effort')
+ expect(markup).not.toContain('Click to toggle automatic subtask routing')
  const supported=renderToStaticMarkup(createElement(RoutingChip,{sessionId:'S',rpc:{call:async()=>({ok:true})},initialView:{mode:'MANUAL',autoSupport:{supported:true}} as never,initiallyOpen:false}))
  expect(supported).toContain('amr-swap')
  expect(supported).not.toContain('data-locked="true"')
- expect(supported).toContain('Click to toggle automatic reasoning effort')
+ expect(supported).toContain('Click to toggle automatic subtask routing')
 })

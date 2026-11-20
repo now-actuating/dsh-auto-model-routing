@@ -1,24 +1,25 @@
-import type { FeedbackBook } from './feedback.js'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { SessionId, type Session } from '@deepseek-ai/dsh-session'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import type { JevClient, Depth, PolicyMeasure } from './jev.js'
 import { CATEGORY_HINTS } from './jev.js'
-import { chooseChildRoute, policyEffort, validatePolicyRoute } from './routing.js'
+import { chooseChildRoute, validatePolicyRoute } from './routing.js'
 import { registry as builtin, type Registry } from './strategies/index.js'
 import { PolicyStore, type ChildDecision } from './policy-store.js'
 import type { RoutingState } from './state.js'
-import type { AutomaticEffort, RoutingCatalog, Settings } from './settings-contract.js'
-import { userInput } from './input.js'
-import { buildState, previousTurn, redact } from './context.js'
+import type { RoutingCatalog, Settings } from './settings-contract.js'
+import { buildState, redact } from './context.js'
 import { isRecord } from './settings-validation.js'
-import { autoSupportedModel, currentMainSelection, mainSupported } from './support.js'
+import { currentMainSelection, mainSupported } from './support.js'
 import { resolvePreset } from './presets/index.js'
 
-export function policyHost(ctx: Context, deps: { selectModel: (request: { sessionId: string; provider: string; model: string; reasoningEffort: string }) => Promise<unknown>; feedback: FeedbackBook; jev: JevClient; state: RoutingState; store: PolicyStore; settings: () => Settings; catalog: (provider?: string) => Promise<RoutingCatalog>; registry?: Registry }) {
+/**
+ * AUTO routes fresh children only. Main sessions are never judged and never rewritten: no decision call, no model selection,
+ * so the main request keeps the user's choice (and its prompt cache) on every turn.
+ */
+export function policyHost(ctx: Context, deps: { jev: JevClient; state: RoutingState; store: PolicyStore; settings: () => Settings; catalog: (provider?: string) => Promise<RoutingCatalog>; registry?: Registry }) {
   const registry = deps.registry ?? builtin
-  const familyOf = (model: string) => registry.familyOfMainModel(model)?.id
   const delegation = new AsyncLocalStorage<{ parentId: string; rootId: string; path: ChildDecision['path']; explicit: { provider?: string; model?: string; reasoningEffort?: string }; prompt: string }>()
   const rootOf = (agent: Agent): Agent | undefined => {
     let current: Agent | undefined = agent
@@ -31,25 +32,19 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
   const epoch = (id: string) => epochs.get(id) ?? 0
   const enabled = (rootId: string) => deps.state.read(rootId).mode === 'AUTO'
   const pending = new Map<string, ChildDecision>()
-  const main = new WeakMap<Agent, { turn: number; depth: Depth; active: boolean; epoch: number }>()
   ctx.effect(() => () => { pending.clear(); delegation.disable() })
   /** In-memory decision view: the persisted child record shape plus the preset that made the judgement (never persisted in child records). */
   type Decision = NonNullable<ChildDecision['decision']> & { preset?: string }
-  const mainStatus = new Map<string, { depth: Depth; effort?: string; reason: string; decision?: Decision }>()
   let decisionId = Date.now()
-  const requestMetadata = new Map<string, { requestSeq: number; appliedAt: number; requestTurn?: number }>()
-  /** Each main session's current decision: time and the preset captured for it. Lives until replaced, voided or disposed — never evicted by other sessions' traffic. */
-  const mainDecided = new Map<string, { id: number; decidedAt: number; preset: string }>()
-  const applied = new Map<string, Decision>()
+  /** Latest child decision per root session (memory only). */
   const latest = new Map<string, Decision>()
   /** Preset captured at each managed child's judgement, keyed by child id (memory only). */
   const childPreset = new Map<string, string>()
   /** Fall back to MANUAL when the main model left AUTO's registered families. */
   const lockUnsupportedMain = (agent: Agent) => {
     deps.state.setMode(agent.id, 'MANUAL')
-    mainStatus.delete(agent.id)
+    epochs.set(agent.id, epoch(agent.id) + 1)
     latest.delete(agent.id)
-    applied.delete(agent.id)
   }
   const childEpochs = new Map<string, number>()
   const notices = new Map<string, { id: number; childId: string; reason: string; at: number }>()
@@ -79,6 +74,8 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
     if (exec.name === 'spawn_teammate' && args.context === 'fork') return next()
     const root = rootOf(exec.agent)
     if (!root || !enabled(root.id)) return next()
+    // The main model left AUTO's registered families: lock to MANUAL and route nothing.
+    if (!mainSupported(currentMainSelection(ctx, root), registry)) { lockUnsupportedMain(root); return next() }
     const explicit = { ...(typeof args.provider === 'string' && args.provider ? { provider: args.provider } : {}),
       ...(typeof args.model === 'string' ? { model: args.model } : {}),
       ...(typeof args.reasoning_effort === 'string' ? { reasoningEffort: args.reasoning_effort } : {}) }
@@ -162,86 +159,11 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
   const requireBindingRecord = (agent: Agent, record: ChildDecision | undefined) => {
     if (deps.store.wasBound(agent.id) && !record) throw new Error('The bound child session decision record is missing and cannot be restored; stop the request without reverting to inherited settings')
   }
-  ctx.on('agent/disposed', ({ agent }) => { pending.delete(agent.id); childPreset.delete(agent.id); mainStatus.delete(agent.id); mainDecided.delete(agent.id); return undefined })
-  /**
-   * Main session, every step: compute the step's effort and apply it before the request is prepared.
-   * DSH 0.2.2 pins `model.current()` at the start of each pre-step and fails any `agent/request` result that differs from it,
-   * so the effort is synced to the official selection first and then written into the step's pinned selection (the object
-   * the request is prepared from; see spec"Current-step selection rewriting requires runtime verification"). Only the effort is touched, never provider/model.
-   */
-  const applyMainEffort = async (payload: Parameters<Parameters<typeof ctx.on<'agent/pre-step'>>[1]>[0]) => {
-    const agent = payload.agent
-    const runtime = main.get(agent)
-    if (!runtime?.active || runtime.turn !== payload.turn || runtime.epoch !== epoch(agent.id) || !enabled(agent.id)) return
-    const selection = payload.modelSelection
-    // Authoritative gate: the step's actual model decides, whatever the picker showed earlier.
-    if (!autoSupportedModel(selection.model, registry)) { lockUnsupportedMain(agent); return }
-    const unsupported = (effort = 'adjustment unsupported') => {
-      const old = mainStatus.get(agent.id)
-      mainStatus.set(agent.id, { ...old, depth: runtime.depth, reason: 'no-effort-support', ...(old?.decision ? { decision: { ...old.decision, status: 'unsupported', model: selection.model, provider: selection.provider, effort } } : {}) })
-    }
-    const info = await ctx.llm.resolveModelInfo(selection.provider, selection.model, payload.signal)
-    if (!enabled(agent.id) || runtime.epoch !== epoch(agent.id) || payload.signal.aborted) return
-    const efforts = (info.reasoning?.efforts ?? []).map(e => String(e.id))
-    if (!efforts.length) { unsupported(); return }
-    let reasoningEffort: AutomaticEffort
-    try {
-      reasoningEffort = policyEffort(selection.model, runtime.depth, efforts, deps.settings().effortCap, info.reasoning?.defaultEffort ? String(info.reasoning.defaultEffort) : undefined, registry)
-    } catch (error) {
-      // A supported model whose directory cannot produce an automatic effort must not fail the turn.
-      ctx.logger.warn(`auto-model-routing: could not map the main reasoning effort: ${String(error)}`)
-      unsupported()
-      return
-    }
-    mainStatus.set(agent.id, { ...mainStatus.get(agent.id), depth: runtime.depth, effort: reasoningEffort, reason: 'jev', ...(mainStatus.get(agent.id)?.decision ? { decision: { ...mainStatus.get(agent.id)!.decision!, effort: reasoningEffort, model: selection.model, provider: selection.provider } } : {}) })
-    if (reasoningEffort === selection.reasoningEffort) return
-    try { await deps.selectModel({ sessionId: agent.id, provider: selection.provider, model: selection.model, reasoningEffort }) }
-    catch (error) { ctx.logger.warn(`auto-model-routing: could not sync the model selection: ${String(error)}`); return }
-    // The user may have left AUTO while the official selection was being written: then the step keeps its pinned selection.
-    if (!enabled(agent.id) || runtime.epoch !== epoch(agent.id) || payload.signal.aborted) return
-    try { (selection as { reasoningEffort?: string }).reasoningEffort = reasoningEffort }
-    catch (error) {
-      // A frozen selection: the official selection already carries the value, so it takes effect from the next step.
-      ctx.logger.warn(`auto-model-routing: could not apply the effort to this step's pinned selection (takes effect next step): ${String(error)}`)
-    }
-  }
-  ctx.on('agent/pre-step', async (payload, next) => {
-    const decision = await next()
-    if (decision.kind !== 'enter') return decision
-    const agent = payload.agent
-    if (agent.session.header.origin === 'subagent') return decision
-    if (!enabled(agent.id)) return decision
-    if (payload.step === 1) {
-      const input = userInput(decision.messages)
-      const old = main.get(agent)
-      if (input.userTurn) {
-        // The main model left AUTO's registered families: judge nothing, rewrite nothing.
-        if (!mainSupported(currentMainSelection(ctx, agent), registry)) { lockUnsupportedMain(agent); return decision }
-        applied.delete(agent.id)
-        mainStatus.delete(agent.id)
-        const startedEpoch = epoch(agent.id)
-        const prior = previousTurn(agent.session.deriveMessages())
-        // Captured once: state, questions, choice checks and attribution all use this preset.
-        const preset = resolvePreset(deps.settings().preset)
-        const result = await deps.jev.judgePolicy(buildState({ text: input.text, prevUser: prior.user, prevAssistant: prior.assistant, execution: preset.context.includes('execution') ? 'main' : undefined }), payload.signal, 'main', 'depth', preset)
-        if (!enabled(agent.id) || epoch(agent.id) !== startedEpoch) return decision
-        if (result.kind === 'failed') { mainDecided.delete(agent.id); deps.state.disable(agent.id, result.category); mainStatus.delete(agent.id); latest.delete(agent.id); main.set(agent, { turn: payload.turn, depth: 'baseline', active: false, epoch: startedEpoch }); return decision }
-        if (result.kind === 'cancelled') { mainDecided.delete(agent.id); main.set(agent, { turn: payload.turn, depth: 'baseline', active: false, epoch: startedEpoch }); return decision }
-        main.set(agent, { turn: payload.turn, depth: result.depth, active: true, epoch: startedEpoch })
-        const { kind: _kind, ...measurement } = result
-        latest.delete(agent.id)
-        mainStatus.set(agent.id, { depth: result.depth, reason: 'jev', decision: { ...measurement, id: ++decisionId, source: 'main', tier: result.depth, effort: 'pending application', status: 'recommended', preset: preset.id } })
-        mainDecided.set(agent.id, { id: decisionId, decidedAt: Date.now(), preset: preset.id })
-        if (mainStatus.size > 200) mainStatus.delete(mainStatus.keys().next().value!)
-      } else if (old) main.set(agent, { ...old, turn: payload.turn })
-    }
-    await applyMainEffort(payload)
-    return decision
-  })
+  ctx.on('agent/disposed', ({ agent }) => { pending.delete(agent.id); childPreset.delete(agent.id); return undefined })
   ctx.on('agent/request', async (payload, next) => {
     const config = await next()
     const agent = payload.agent
-    // Main sessions are handled in the pre-step (DSH 0.2.2 rejects a request config that differs from the step's pinned selection).
+    // Main sessions pass through untouched: AUTO never changes their request.
     if (agent.session.header.origin !== 'subagent') return config
     // Managed children: the route was written into the child's own selection at `agent/created`; this listener only verifies it,
     // on every attempt (retries included), and returns the request unchanged.
@@ -261,46 +183,12 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
     }
     return config
   }, { prepend: true })
-  const confirmMainRequest = (session: Session, requestSeq: number, turn?: number) => {
-    const status = mainStatus.get(session.id)
-    const actual = session.requestHeader()?.config
-    if (!enabled(session.id) || !status?.decision || !actual) return
-    const d = { ...status.decision, status: status.decision.status === 'unsupported' ? 'unsupported' : actual.reasoningEffort === status.effort && actual.provider === status.decision.provider && actual.model === status.decision.model ? 'applied' : 'failed', ...(actual.model ? { model: actual.model } : {}), ...(actual.provider ? { provider: actual.provider } : {}) }
-    mainStatus.set(session.id, { ...status, decision: d }); latest.set(session.id, d)
-    if (d.status === 'applied') {
-      applied.set(session.id, d)
-      requestMetadata.set(session.id, { requestSeq, appliedAt: Date.now(), ...(turn !== undefined ? { requestTurn: turn } : {}) })
-    } else applied.delete(session.id)
-  }
   ctx.on('session/event', (session, event) => {
-    if (event.type === 'assistant/message') {
-      // Unchanged requests reuse the durable header and emit no request/header event.
-      if (!applied.has(session.id) && mainStatus.get(session.id)?.decision?.status === 'recommended') {
-        const header = session.snapshotEvents().findLast(e => e.type === 'request/header')
-        if (header) confirmMainRequest(session, header.seq, event.data.turn)
-      }
-      const d = applied.get(session.id)
-      const data = event.data as { message?: { id?: string } }
-      if (d?.status === 'applied' && enabled(session.id) && data.message?.id && d.model) {
-        try { deps.feedback.bind({ sessionId: session.id, messageId: data.message.id, decisionId: d.id, depth: d.depth, model: d.model, effort: d.effort,
-          ...(requestMetadata.has(session.id) && d.provider && mainDecided.get(session.id)?.id === d.id ? { snapshot: {
-            ...requestMetadata.get(session.id)!, decidedAt: mainDecided.get(session.id)!.decidedAt, preset: mainDecided.get(session.id)!.preset, ...(familyOf(d.model) ? { strategy: familyOf(d.model)! } : {}),
-            decisionProvider: d.decisionProvider, decisionModel: d.decisionModel, ms: d.ms, provider: d.provider,
-            ...(d.confidence !== undefined ? { confidence: d.confidence } : {}), ...(d.probabilities ? { probabilities: d.probabilities } : {}),
-          } } : {}),
-        }) }
-        catch { ctx.logger.warn('auto-model-routing: could not bind allocation feedback') }
-      }
-      return
-    }
     if (event.type !== 'request/header') return
-    applied.delete(session.id)
-    requestMetadata.delete(session.id)
+    // Main sessions are never rewritten: only routed children are confirmed against their actual request.
+    if (session.header.origin !== 'subagent') return
     const record = deps.store.get(session.id)
-    if (!record?.route) {
-      confirmMainRequest(session, event.seq, (event.data as { turn?: number }).turn)
-      return
-    }
+    if (!record?.route) return
     const actual = (event.data as { header?: { config?: { provider?: string; model?: string; reasoningEffort?: string } } }).header?.config
     if (!actual) return
     const matches = actual.provider === record.route.provider && actual.model === record.route.model && actual.reasoningEffort === record.route.reasoningEffort
@@ -310,9 +198,10 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
     if (!matches) throw new Error('Actual request settings do not match the route')
   })
   return {
-    appliedDecision: (id: string) => enabled(id) ? applied.get(id)?.id : undefined,
-    invalidate: (id: string) => { epochs.set(id, epoch(id) + 1); mainStatus.delete(id); latest.delete(id); applied.delete(id); mainDecided.delete(id) },
+    invalidate: (id: string) => { epochs.set(id, epoch(id) + 1); latest.delete(id) },
     childNotice: (rootId: string) => notices.get(rootId),
-    status: (id: string) => deps.store.get(id), mainStatus: (id: string) => enabled(id) ? { ...mainStatus.get(id), ...(latest.get(id) ? { decision: latest.get(id) } : {}) } : undefined,
+    status: (id: string) => deps.store.get(id),
+    /** The root's latest child decision (AUTO only); the main session itself has no decision. */
+    latestDecision: (id: string) => enabled(id) ? latest.get(id) : undefined,
   }
 }

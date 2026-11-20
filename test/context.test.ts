@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { buildState, previousTurn, redact } from '../src/context.js'
+import { buildState, redact } from '../src/context.js'
 
 const user = (text: string, kind = 'user') => ({ role: 'user', source: { kind }, content: [{ type: 'text', text }] })
 const assistant = (text: string) => ({ role: 'assistant', content: [{ type: 'text', text }] })
@@ -33,42 +33,13 @@ it('spec Scenario "Redaction covers common secret formats without changing prose
   expect(redact('at 10.1.2.3:8080 ok')).toBe('at <ip> ok')
 })
 
-it('spec Scenario "Previous turn context is truncated and its tail is redacted"', () => {
-  const longUser = 'Q'.repeat(900)
-  const reply = `${'A'.repeat(3000 - 40)} token=abc123def456 at 10.1.2.3:8080`
-  const messages = [
-    user('An earlier question'),
-    assistant('An earlier answer'),
-    user('Host instructions', 'agent-instructions'),
-    user(longUser),
-    assistant('Earlier content'),
-    { role: 'assistant', content: [{ type: 'tool-call', id: 't' }] },
-    assistant(reply),
-    { role: 'tool', content: [{ type: 'text', text: 'tool output' }] },
-  ]
-  const previous = previousTurn(messages)
-  expect(previous).toEqual({ user: longUser, assistant: reply })
-  const state = buildState({ prevUser: previous.user, prevAssistant: previous.assistant, text: 'Continue' })
-  const lines = state.split('\n')
-  expect(lines[0]).toBe('Previous user-turn tier: none')
-  expect(state).toContain(`Previous user message (truncated):\n${'Q'.repeat(500)}\n`)
-  expect(state).not.toContain('Q'.repeat(501))
-  const redactedReply = redact(reply)
-  expect(state).toContain(`Previous assistant reply (last part):\n${redactedReply.slice(-1200)}\n`)
-  expect(state).not.toContain('Earlier content')
-  expect(state).not.toContain('abc123def456')
-  expect(state).not.toContain('10.1.2.3')
-  expect(state).toContain('token=<redacted>')
-  expect(state).toContain('<ip>')
-  expect(state.endsWith('New user message:\nContinue')).toBe(true)
-})
-
-it('first_turn_state_has_no_context', () => {
-  expect(previousTurn([user('Host instructions', 'agent-instructions')])).toEqual({})
+it('subtask_state_has_no_conversation_context', () => {
   expect(buildState({ text: 'Look into this error' })).toBe('Previous user-turn tier: none\nUser message:\nLook into this error')
-  // Only one side present: the explanation line stays, the missing section is omitted.
-  const onlyUser = buildState({ prevUser: 'Fix the login flow', text: 'Continue' })
-  expect(onlyUser.split('\n')[0]).toBe('Previous user-turn tier: none')
-  expect(onlyUser).toContain('Previous user message (truncated):\nFix the login flow')
-  expect(onlyUser).not.toContain('Previous assistant reply')
+  expect(buildState({ text: 'Fix it', execution: 'delegated' })).toBe('Previous user-turn tier: none\nExecution: delegated subtask; the result returns to an orchestrating agent.\nUser message:\nFix it')
+  const long = `token=abc123def456 ${'x'.repeat(9000)}`
+  const state = buildState({ text: long })
+  expect(state).not.toContain('abc123def456')
+  expect(state.split('\n').at(-1)!.length).toBe(8000)
+  expect(state).not.toContain('Previous user message')
+  expect(state).not.toContain('Previous assistant reply')
 })

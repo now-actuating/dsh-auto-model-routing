@@ -42,44 +42,26 @@ it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "
  expect(h.calls.at(-1)).toMatchObject({model:'claude/claude-haiku-5-5',reasoningEffort:'medium'})
  expect(h.jev.bodies).toHaveLength(1)
 })
-it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('%s main keeps transport and model unchanged',async(provider)=>{
- const h=await harness(provider)
+it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('%s main keeps transport, model and effort unchanged',async(provider)=>{
+ const h=await harness(provider,true)
  h.jev.set(json(200,{answers:{depth:{choice:'higher'}}}))
  await h.run(h.parent,'main task')
- expect(h.calls.at(-1)).toMatchObject({provider,model:'claude/claude-opus-5-5',reasoningEffort:'high'})
- expect(h.parent.session.requestHeader()?.config).toMatchObject({provider,model:'claude/claude-opus-5-5',reasoningEffort:'high'})
+ expect(h.calls.at(-1)).toMatchObject({provider,model:'claude/claude-opus-5-5',reasoningEffort:'medium'})
+ expect(h.parent.session.requestHeader()?.config).toMatchObject({provider,model:'claude/claude-opus-5-5',reasoningEffort:'medium'})
+ expect(h.jev.bodies).toHaveLength(0)
 })
-it.each([false,'dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "The same main request synchronizes official effort and defaults" (%s)',async(provider)=>{
+it.each([false,'dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "AUTO main requests never write the official selection or defaults" (%s)',async(provider)=>{
  const h=await harness(provider,true)
  h.jev.set(json(200,{answers:{depth:{choice:'higher'}}}))
  await h.run(h.parent,'Main task with an explicit medium pick')
- const route={provider:provider||'claude',model:provider?'claude/claude-opus-5-5':'claude-opus-5-5',reasoningEffort:'high'}
- expect(h.calls).toHaveLength(1)
- expect(h.calls[0]).toMatchObject(route)
- expect(h.parent.session.requestHeader()?.config).toMatchObject(route)
- expect(h.selections).toEqual([{sessionId:h.parent.id,...route}])
- expect(h.defaults).toEqual([route])
- expect(h.timeline).toEqual(['defaults','selected','adapter'])
- expect(h.ctx.sessionProjections.snapshot(h.parent.session,['modelSelection']).values.modelSelection).toEqual({lastUsed:route,next:route})
- await h.run(h.parent,'Same effort in the next AUTO turn')
+ await h.run(h.parent,'Next AUTO turn')
+ const route={provider:provider||'claude',model:provider?'claude/claude-opus-5-5':'claude-opus-5-5',reasoningEffort:'medium'}
  expect(h.calls).toHaveLength(2)
- expect(h.selections).toHaveLength(1)
- h.modes.set(h.parent.id,{mode:'MANUAL'})
- await h.run(h.parent,'MANUAL keeps the official high selection')
- expect(h.calls.at(-1)).toMatchObject(route)
- expect(h.selections).toHaveLength(1)
-})
-it.each([true,'missing'] as const)('spec Scenario "A synchronization failure does not drop the request" (%s)',async(selectFails)=>{
- const h=await harness(false,true,'claude',selectFails)
- h.jev.set(json(200,{answers:{depth:{choice:'higher'}}}))
- await h.run(h.parent,'Keep one consistent effort if synchronization cannot complete')
- expect(h.calls).toHaveLength(1)
- expect(h.calls[0]).toMatchObject({provider:'claude',model:'claude-opus-5-5',reasoningEffort:'medium'})
- expect(h.parent.session.requestHeader()?.config.reasoningEffort).toBe('medium')
- expect(h.selections).toHaveLength(selectFails === 'missing' ? 0 : 1)
- expect(h.defaults).toEqual([])
- expect(h.warnings).toHaveBeenCalledWith(expect.stringContaining('could not sync the model selection'))
- expect(h.modes.get(h.parent.id)?.mode).toBe('AUTO')
+ for(const call of h.calls)expect(call).toMatchObject(route)
+ expect(h.parent.session.requestHeader()?.config).toMatchObject(route)
+ expect(h.selections).toEqual([]);expect(h.defaults).toEqual([])
+ expect(h.timeline).toEqual(['adapter','adapter'])
+ expect(h.jev.bodies).toHaveLength(0)
 })
 it('spec Scenario "Manual and child requests do not modify defaults"',async()=>{
  const h=await harness(false,true)
@@ -89,28 +71,21 @@ it('spec Scenario "Manual and child requests do not modify defaults"',async()=>{
  expect(h.calls.map(c=>c.reasoningEffort)).toEqual(['medium','medium'])
  expect(h.selections).toEqual([]);expect(h.defaults).toEqual([])
 })
-it.each([
- ['lower', 'medium'], ['baseline', 'high'], ['higher', 'xhigh'],
-] as const)('Sol main request applies %s as %s', async (depth, effort) => {
- const h = await harness(false, false, 'codex')
- h.jev.set(json(200, { answers: { capability: { choice: 'bounded' }, depth: { choice: depth } } }))
- await h.run(h.parent, 'GPT main task')
- expect(h.calls.at(-1)).toMatchObject({ provider: 'codex', model: 'gpt-6.1-sol', reasoningEffort: effort })
-})
 it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "Automatic Magpie child routing" (%s)',async(provider)=>{
  const h=await harness(provider,true,'codex')
  h.jev.set(json(200,{answers:{capability:{choice:'bounded'},depth:{choice:'higher'}}}))
  await h.run(h.parent,'GPT main task')
- expect(h.calls.at(-1)).toMatchObject({provider,model:'codex/gpt-6.1-sol',reasoningEffort:'xhigh'})
+ expect(h.calls.at(-1)).toMatchObject({provider,model:'codex/gpt-6.1-sol'})
+ expect(h.jev.bodies).toHaveLength(0)
  expect((await h.invoke()).isError).not.toBe(true)
  const child=h.handles[1]!.agent
  expect(h.store.get(child.id)).toMatchObject({status:'applied',family:'codex',route:{provider,model:'codex/gpt-6-luna',reasoningEffort:'xhigh'}})
  await h.restart();h.modes.set(h.parent.id,{mode:'MANUAL'})
  await h.run(child,'Restore GPT child')
  expect(h.calls.at(-1)).toMatchObject({provider,model:'codex/gpt-6-luna',reasoningEffort:'xhigh'})
- expect(h.selections).toEqual([{sessionId:h.parent.id,provider,model:'codex/gpt-6.1-sol',reasoningEffort:'xhigh'}])
- expect(h.defaults).toEqual([{provider,model:'codex/gpt-6.1-sol',reasoningEffort:'xhigh'}])
- expect(h.jev.bodies).toHaveLength(2)
+ expect(h.selections).toEqual([])
+ expect(h.defaults).toEqual([])
+ expect(h.jev.bodies).toHaveLength(1)
 })
 it('binds concurrent tool-created identities, records actual requests, and restores plugin decisions', async () => {
   const h = await harness()
@@ -153,12 +128,12 @@ it('spec Scenario "Child sessions bypass main-session judgment"', async () => {
   expect(body.state).toContain('Apply the exact supplied mechanical transformation')
   expect(body.state).not.toContain('PRIVATE_RUNTIME_CONTEXT')
 })
-it('spec Scenario "AUTO does not change the main provider or model"', async () => {
-  const h = await harness()
+it('spec Scenario "AUTO does not change the main provider, model or effort"', async () => {
+  const h = await harness(false, true)
   h.jev.set(json(200,{ answers: { depth: { choice: 'higher' } } }))
   await h.run(h.parent,'Reason carefully about the constraint conflict')
-  expect(h.calls.at(-1)).toMatchObject({ provider: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'high' })
-  expect((h.jev.bodies[0] as { questions: unknown }).questions).not.toHaveProperty('capability')
+  expect(h.calls.at(-1)).toMatchObject({ provider: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'medium' })
+  expect(h.jev.bodies).toHaveLength(0)
 })
 it('spec Scenario "Switching to MANUAL during async resolution leaves the main request unchanged"', async () => {
   const h=await harness()
@@ -244,7 +219,8 @@ it('spec Scenario "A request for an unsupported model no longer fails the whole 
   expect(attempt.provider).toBe('opencode-go')
   expect(attempt.model).toBe('deepseek-v4.1-flash')
   expect(h.jev.bodies).toHaveLength(0)
-  expect(h.modes.get(h.parent.id)?.mode).toBe('MANUAL')
+  // The lock is applied when the chip reads the state (or a child is created), never by a main turn.
+  expect(await h.callEndpoint('state', { sessionId: h.parent.id })).toMatchObject({ mode: 'MANUAL', autoSupport: { supported: false } })
   const ends = h.parent.session.snapshotEvents().filter(event => event.type === 'turn/end')
   expect((ends.at(-1)!.data as { reason: { kind: string } }).reason.kind).toBe('completed')
 })
@@ -286,9 +262,9 @@ it('spec Scenario "Adding a model family only requires a new strategy"', async (
  expect(() => createRegistry(strategies)).not.toThrow()
  const h = await harness(false, false, 'deepseek', false, {}, strategies)
  expect((await h.callEndpoint('state', { sessionId: h.parent.id })).autoSupport).toMatchObject({ supported: true })
- h.jev.set(json(200, { answers: { depth: { choice: 'higher' } } }))
  await h.run(h.parent, 'main task')
- expect(h.calls.at(-1)).toMatchObject({ provider: 'opencode-go', model: 'deepseek-v5', reasoningEffort: 'high' })
+ expect(h.calls.at(-1)).toMatchObject({ provider: 'opencode-go', model: 'deepseek-v5' })
+ expect(h.jev.bodies).toHaveLength(0)
  h.jev.set(json(200, { answers: { capability: { choice: 'bounded' }, depth: { choice: 'baseline' } } }))
  expect((await h.invoke()).isError).not.toBe(true)
  const child = h.handles.at(-1)!.agent
@@ -318,34 +294,17 @@ const keysOf = (value: unknown): string[] => Array.isArray(value) ? value.flatMa
 const noVersionKeys = (label: string, value: unknown) => { for (const key of VERSION_KEYS) expect(keysOf(value), `${label}: ${key}`).not.toContain(key) }
 it('spec Scenario "New records omit version fields"', async () => {
  const h = await harness(); h.setAnswer('reply')
- const ledger = join(h.home, 'state/auto-model-routing/allocation-feedback.jsonl')
- const before = (() => { try { return readFileSync(ledger, 'utf8') } catch { return '' } })()
  await h.run(h.parent, 'main task')
- const reply = h.parent.session.deriveMessages().findLast(m => m.role === 'assistant')!.id
  expect((await h.invoke()).isError).not.toBe(true)
- const child = h.handles.at(-1)!.agent
  noVersionKeys('state', await h.callEndpoint('state', { sessionId: h.parent.id }))
- const label = await h.callEndpoint('label', { sessionId: h.parent.id, messageId: reply })
- expect(label).toHaveProperty('depth')
- noVersionKeys('label', label)
  const preview = await callTool(h.ctx, h.parent, 'route_subagent', { task: 'x', provider: 'claude' })
  noVersionKeys('route_subagent', preview)
  const dir = join(h.home, 'state/auto-model-routing/policy-v2')
  const record = readdirSync(dir).filter(f => f.endsWith('.json')).map(f => JSON.parse(readFileSync(join(dir, f), 'utf8')))
  expect(record.length).toBeGreaterThan(0)
  noVersionKeys('child record', record)
- await h.callEndpoint('label', { sessionId: h.parent.id, messageId: reply, feedback: 'too-high' })
- await h.callEndpoint('label', { sessionId: h.parent.id, messageId: reply, feedback: null })
- await h.callEndpoint('observe', { sessionId: h.parent.id, messageId: reply })
  await h.callEndpoint('setMode', { sessionId: h.parent.id, mode: 'MANUAL' })
- const added = readFileSync(ledger, 'utf8').slice(before.length).trim().split('\n').map(l => JSON.parse(l))
- expect(added.map(r => r.type ?? 'binding')).toEqual(expect.arrayContaining(['binding', 'feedback', 'fact']))
- expect(added.filter(r => r.type === 'fact').map(r => r.fact).sort()).toEqual(['exposed', 'manual-switch'])
- noVersionKeys('ledger rows', added)
- expect(added.find(r => !r.type).snapshot).toMatchObject({ strategy: 'claude' })
- const { buildReport } = await import('../src/usage-report.js')
- noVersionKeys('usage report', buildReport(h.home))
- void child
+ expect(existsSync(join(h.home, 'state/auto-model-routing/allocation-feedback.jsonl'))).toBe(false)
 })
 const legacyRecord = (childId: string, parentId: string, extra: Record<string, unknown> = {}) => ({ version: 1, childId, parentId, rootId: parentId, policyVersion: 'policy-v2-0000aaaa', mappingVersion: 'capability-slots-1', status: 'applied', path: 'ordinary', family: 'claude', explicit: { provider: 'claude' }, route: { provider: 'claude', model: 'claude-haiku-5-5', reasoningEffort: 'medium' }, actual: { provider: 'claude', model: 'claude-haiku-5-5', reasoningEffort: 'medium' }, ...extra })
 const childFile = (home: string, id: string) => join(home, 'state/auto-model-routing/policy-v2', `${createHash('sha256').update(id).digest('hex')}.json`)
@@ -405,26 +364,6 @@ it('spec Scenario "A binding marker exists but the record is missing or corrupt"
  expect(h.calls).toHaveLength(requests)
  expect(h.jev.bodies).toHaveLength(judged)
 })
-it('spec Scenario "Main decision state before and after a request"', async () => {
- const h = await harness(false, false, 'claude', false, { efforts: ['max'], defaultEffort: 'max' })
- h.jev.set(json(200, { answers: { depth: { choice: 'higher' } } }))
- const states: unknown[] = []
- const original = h.parent.model.current()
- // Prepended: this listener runs outermost, so it reads the state after the plugin's pre-step finished (judged and applied).
- h.ctx.on('agent/pre-step', async (payload, next) => { const decision = await next(); if (payload.agent === h.parent && payload.step === 1) states.push(await h.callEndpoint('state', { sessionId: h.parent.id })); return decision }, { prepend: true })
- await h.run(h.parent, 'only max is available')
- // 0.2.2: effort is computed in the pre-step, so the unsupported outcome is already visible once pre-step completes.
- expect(states[0]).toMatchObject({ reason: 'no-effort-support', decision: { source: 'main', tier: 'higher', depth: 'higher', status: 'unsupported' } })
- expect(await h.callEndpoint('state', { sessionId: h.parent.id })).toMatchObject({ reason: 'no-effort-support', decision: { source: 'main', tier: 'higher', depth: 'higher', status: 'unsupported' } })
- // The request is the step's original official selection, untouched; no sync, no default saved; one judgement; still AUTO.
- expect(h.calls).toHaveLength(1)
- expect(h.calls[0]).toMatchObject({ provider: original!.provider, model: original!.model })
- // The official selection carries no effort (adapter default `max`): the request is that selection, not a rewrite.
- expect(original!.reasoningEffort).toBeUndefined(); expect(h.calls[0]!.reasoningEffort).toBe('max')
- expect(h.selections).toHaveLength(0); expect(h.defaults).toHaveLength(0)
- expect(h.jev.bodies).toHaveLength(1)
- expect(h.modes.get(h.parent.id)?.mode).toBe('AUTO'); expect(h.modes.get(h.parent.id)?.disabled).toBeUndefined()
-})
 it('spec Scenario "Fully explicit subtask decisions are visible"', async () => {
  const h = await harness()
  expect((await h.invoke({ model: 'claude-sonnet-5-5', reasoning_effort: 'low' })).isError).not.toBe(true)
@@ -442,9 +381,13 @@ it('spec Scenario "Switching to an unsupported main model locks AUTO"', async ()
  h.modes.set(h.parent.id, { mode: 'AUTO' })
  await h.run(h.parent, 'next turn')
  expect(h.jev.bodies).toHaveLength(0)
- expect(h.modes.get(h.parent.id)?.mode).toBe('MANUAL')
  const attempt = h.calls.at(-1)!
  expect({ provider: attempt.provider, model: attempt.model, reasoningEffort: attempt.reasoningEffort }).toEqual({ provider: official.provider, model: official.model, reasoningEffort: official.reasoningEffort })
+ // Creating a child from an unsupported main model locks AUTO and routes nothing.
+ await h.invoke()
+ expect(h.jev.bodies).toHaveLength(0)
+ expect(h.modes.get(h.parent.id)?.mode).toBe('MANUAL')
+ expect(h.store.get(h.handles.at(-1)!.agent.id)).toBeUndefined()
 })
 it('spec Scenario "Children created directly by a plugin pass through unchanged"', async () => {
  const h = await harness()
@@ -695,7 +638,9 @@ it('spec Scenario "A subtask judgment failure does not disable AUTO for the root
  expect(h.modes.get(h.parent.id)).toMatchObject({ mode: 'AUTO' }); expect(h.modes.get(h.parent.id)?.disabled).toBeUndefined()
  h.jev.set(json(200, { answers: { depth: { choice: 'baseline' } } }))
  const judged = h.jev.bodies.length
- await h.run(h.parent, 'The root still judges its own next turn')
+ await h.run(h.parent, 'The root itself is never judged')
+ expect(h.jev.bodies.length).toBe(judged)
+ await h.invoke()
  expect(h.jev.bodies.length).toBe(judged + 1)
 })
 it('spec Scenario "GPT main sessions can delegate with an unregistered provider"', async () => {
@@ -881,4 +826,32 @@ it.each([['cap lowered', (h: RealHarness) => h.configure({ effortCap: 'medium' }
  // Route, record and the child's selection are untouched.
  expect(h.store.get(childId)!.route).toEqual(record.route)
  expect(child.model.current()).toMatchObject(record.route!)
+})
+
+// ---- 0.7.1+mod.4 acceptance: subagent-only AUTO.
+it('spec Scenario "AUTO routes a fresh child with one decision call and leaves the main effort alone" (T2)', async () => {
+ const h = await harness(false, true)
+ await h.run(h.parent, 'Main turn before delegating')
+ expect(h.jev.bodies).toHaveLength(0)
+ expect((await h.invoke()).isError).not.toBe(true)
+ expect(h.jev.bodies).toHaveLength(1)
+ const child = h.handles.at(-1)!.agent
+ expect(h.store.get(child.id)).toMatchObject({ status: 'applied', route: { provider: 'claude', model: 'claude-haiku-5-5' } })
+ await h.run(h.parent, 'Main turn after delegating')
+ expect(h.jev.bodies).toHaveLength(1)
+ const main = h.calls.filter(c => c.sessionId === h.parent.id)
+ expect(main.length).toBeGreaterThanOrEqual(2)
+ for (const call of main) expect(call).toMatchObject({ provider: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'medium' })
+ expect(h.parent.session.requestHeader()?.config).toMatchObject({ reasoningEffort: 'medium' })
+ expect(h.selections).toEqual([]); expect(h.defaults).toEqual([])
+ expect((await h.callEndpoint('state', { sessionId: h.parent.id })).decision).toMatchObject({ source: 'subagent', status: 'applied' })
+})
+it('spec Scenario "MANUAL creates children without any decision call" (T3)', async () => {
+ const h = await harness(); h.modes.set(h.parent.id, { mode: 'MANUAL' })
+ await h.run(h.parent, 'Main turn')
+ expect((await h.invoke()).isError).not.toBe(true)
+ await h.invoke({ model: 'claude-sonnet-5-5' })
+ expect(h.jev.bodies).toHaveLength(0)
+ for (const c of h.handles.slice(1)) expect(h.store.get(c.agent.id)).toBeUndefined()
+ expect((await h.callEndpoint('state', { sessionId: h.parent.id })).decision).toBeUndefined()
 })
