@@ -54,14 +54,14 @@ const runLive = (args: string[]) => {
   return { status: r.status, stderr: r.stderr, out, calls }
 }
 
-it('spec Scenario "未知预设提前拒绝"', () => {
+it('spec Scenario "Unknown presets are rejected early"', () => {
   const r = runLive(['--preset', 'does-not-exist'])
   expect(r.status).not.toBe(0)
   expect(r.calls).toHaveLength(0)
   expect(existsSync(r.out)).toBe(false)
 })
 
-it('spec Scenario "报告记录实验条件"', async () => {
+it('spec Scenario "The report records experiment conditions"', async () => {
   const r = runLive(['--preset', 'effort-as-verification'])
   expect(r.status, r.stderr).toBe(0)
   const report = JSON.parse(readFileSync(r.out, 'utf8'))

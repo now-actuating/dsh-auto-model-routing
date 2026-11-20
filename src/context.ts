@@ -3,7 +3,8 @@ const RULES: readonly [RegExp, string][] = [
   [/-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g, '<redacted>'],
   [/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, 'Bearer <redacted>'],
   [/\b(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16})\b/g, '<redacted>'],
-  [/(密码|授权码|appid|password|passwd|token|api[_-]?key|secret)(["']?\s*[:：=]\s*["']?)[^\s"',;]+/gi, '$1$2<redacted>'],
+  // Match Chinese "password" and "authorization code" labels, including a fullwidth colon.
+  [/(\u5bc6\u7801|\u6388\u6743\u7801|appid|password|passwd|token|api[_-]?key|secret)(["']?\s*[:\uff1a=]\s*["']?)[^\s"',;]+/gi, '$1$2<redacted>'],
   [/\/\/[^\s/:@]+:[^\s/@]+@/g, '//<redacted>@'],
   [/\b\d{1,3}(\.\d{1,3}){3}(:\d+)?\b/g, '<ip>'],
 ]

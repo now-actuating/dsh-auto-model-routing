@@ -54,7 +54,7 @@ it('persists message-bound feedback with modification cancellation and validatio
  expect((await call('invalid')).status).toBe(400);expect((await call('appropriate','other')).status).toBe(404)
  expect(book.lookup('other','m')).toBeUndefined()
 })
-it('spec Scenario "新旧记录并存"',()=>{
+it('spec Scenario "New and old records coexist"',()=>{
  const file=join(mkdtempSync(join(tmpdir(),'feedback-mixed-')),'data.jsonl')
  const oldSnapshot={decidedAt:1,appliedAt:2,policyVersion:'policy-v2-d774ffe6',mappingVersion:'capability-slots-2-magpie',decisionProvider:'openrouter',decisionModel:'jev',ms:20,provider:'claude',requestSeq:8}
  writeFileSync(file,JSON.stringify({sessionId:'s',messageId:'old',decisionId:1,depth:'baseline',model:'claude-opus-5-5',effort:'medium',snapshot:oldSnapshot,boundAt:3})+'\n'+JSON.stringify({type:'feedback',version:2,sessionId:'s',messageId:'old',decisionId:1,at:4,feedback:'appropriate'})+'\n')
@@ -71,7 +71,7 @@ it('spec Scenario "新旧记录并存"',()=>{
  expect(rows.at(-1)).toMatchObject({type:'feedback',feedback:'too-high'});expect(rows.at(-1)).not.toHaveProperty('version')
  expect(new FeedbackBook(file).lookup('s','new')).toMatchObject({snapshot,feedback:'too-high'})
 })
-it('spec Scenario "新旧事件格式混读"',()=>{
+it('spec Scenario "New and old event formats can be read together"',()=>{
  const file=join(mkdtempSync(join(tmpdir(),'feedback-events-')),'data.jsonl')
  const bind=(m:string,d:number)=>JSON.stringify({sessionId:'s',messageId:m,decisionId:d,depth:'baseline',model:'sol',effort:'medium'})
  const lines=[bind('a',1),bind('b',2),bind('c',3),

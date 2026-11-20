@@ -4,8 +4,8 @@
  *
  * The plugin keeps a module-scoped translator instead of threading `t`
  * through every helper, `apply()` binds the host translator once, and before
- * that (unit tests, or a host without a locale service) the Chinese reference
- * set is used so existing tests and behaviour do not change. Placeholders use
+ * that (unit tests, or a host without a locale service) the English reference
+ * set is used. Placeholders use
  * the host's `{name}` syntax and are interpolated here, so the fallback path and
  * the bound path behave identically.
  *
@@ -15,7 +15,6 @@
 export declare const NS = "settings.autoModelRouting";
 /** English strings (reference key set; values may contain `{placeholders}`). */
 export declare const en: {
-    presetLang: string;
     preset: string;
     presetHint: string;
     presetDefault: string;
@@ -171,20 +170,17 @@ export declare const en: {
 };
 /** The key union, derived from the English reference set. */
 export type AutoKey = keyof typeof en;
-/** Simplified Chinese strings; the reference implementation this plugin shipped with. */
-export declare const zh: Record<AutoKey, string>;
 type Params = Record<string, string | number>;
 type Translator = (key: AutoKey) => string;
 /** Bind the host translator. Called once from the client entry (`apply`). */
 export declare function bindLocale(translator: Translator): void;
-/** Drop the bound translator and fall back to the Chinese reference set (tests). */
+/** Drop the bound translator and fall back to the English reference set (tests). */
 export declare function resetLocale(): void;
 /** Interpolate `{name}` placeholders; unknown names stay verbatim. */
 export declare function interpolate(template: string, params?: Params): string;
 /**
- * Translate one key. Without a bound translator the Chinese reference set is
- * used, so unit tests and any embedding without a locale service keep the copy
- * this plugin shipped with.
+ * Translate one key. Without a bound translator the English reference set is
+ * used, so unit tests and any embedding without a locale service use the same English copy.
  */
 export declare function t(key: AutoKey, params?: Params): string;
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -193,7 +189,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         [NS]: AutoKey;
     }
 }
-/** Localized labels for the built-in decision services (host-facing labels stay untouched). */
+/** Localized labels for the built-in decision services. */
 export declare const SERVICE_LABEL_KEYS: {
     readonly openrouter: "serviceOpenrouter";
     readonly typesafe: "serviceTypesafe";

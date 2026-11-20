@@ -1,27 +1,27 @@
-# 预设 `reasoning-depth`（缺省）
+# Preset `reasoning-depth` (default)
 
-规则文件：[rubric.json](../../src/presets/reasoning-depth/rubric.json)。这是 0.6.6 及更早版本里唯一的 `src/rubric.json`，原样迁移过来，字节完全相同，sha256 与 [routing-oracle-0.4.2.json](../../test/fixtures/routing-oracle-0.4.2.json) 的 `rubricSha256` 一致。不启用任何上下文行，所以选它时发给 Jev 的 `questions` 和 `state` 与之前完全一样。
+Rules: [rubric.json](../../src/presets/reasoning-depth/rubric.json). This is the sole `src/rubric.json` from 0.6.6 and earlier, moved without changing a byte. Its SHA-256 matches `rubricSha256` in [routing-oracle-0.4.2.json](../../test/fixtures/routing-oracle-0.4.2.json). No context lines are enabled, so this preset sends exactly the same `questions` and `state` to Jev as before.
 
-## 要点
+## Key points
 
-- **capability**（只问子任务）：判断完成任务所需的最低模型能力，不看工作量、风险或重要性。
-- **depth**：判断推理投入。`lower` 只用于琐碎的检索、复制或完全给定的机械步骤；`higher` 用于需要格外仔细的多步推理、困难约束协调或精细证明的任务；其余情况，以及证据不足时，都是 `baseline`。工作量和风险本身不提高 depth。
+- **capability** (subtasks only): Judge the minimum model capability needed to complete the task, regardless of its volume, risk, or importance.
+- **depth**: Judge the reasoning investment required. `lower` is reserved for trivial lookups, copying, or fully specified mechanical steps. `higher` applies to tasks demanding unusually careful multi-step reasoning, reconciliation of difficult constraints, or a precise proof. All other cases, including insufficient evidence, get `baseline`. Volume and risk do not raise depth on their own.
 
-## 来源与证据
+## Sources and evidence
 
-- 设计与小样本核对：[Jev 判档验证记录](../jev-policy-v2-validation.md)（2026-10-24），以及 [eval](../../eval/README.md) 中的 10 条合成用例。
-- 这些只能说明接口可用、分类结果一致，不能说明实际任务质量更好或成本更低。
+- Design and small-sample checks: [Jev classification validation](../jev-policy-v2-validation.md) (2026-10-24) and the 10 synthetic cases in [eval](../../eval/README.md).
+- These establish only that the interface works and that classifications agree with expectations, not that real tasks improve in quality or cost less.
 
-## 与 `effort-as-verification` 的差异
+## Differences from `effort-as-verification`
 
 | | `reasoning-depth` | `effort-as-verification` |
 |---|---|---|
-| depth 衡量什么 | 推理难度 | 验证、边界情况测试与自主判断的投入 |
-| 有人复核的快速首轮 | 通常是 `baseline` | 可以判 `lower` |
-| 边界情况密集的工作（解析器、安全审查、已有代码里的 bug） | 只有推理也难时才是 `higher` | `higher` |
-| `Execution` 上下文行 | 不加 | 加 |
+| What depth measures | Reasoning difficulty | Investment in verification, edge-case testing, and independent judgment |
+| Quick first pass with someone reviewing | Usually `baseline` | Can be `lower` |
+| Work with many edge cases (parsers, security reviews, bugs in existing code) | `higher` only if the reasoning is also difficult | `higher` |
+| `Execution` context line | Omitted | Included |
 
-## 已知限制
+## Known limitations
 
-- 判档标准把"难"和"需要多验证"混在一起，安全、并发这类任务可能被判低。
-- 历史上曾把有风险但不难的任务判高；现行规则已明确风险不提高 depth。
+- The rubric conflates difficulty with the need for more verification, so tasks in areas like security and concurrency can be rated too low.
+- Historically, risky but straightforward tasks were sometimes rated too high; the current rules explicitly say risk does not increase depth.

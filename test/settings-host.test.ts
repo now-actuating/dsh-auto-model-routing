@@ -43,7 +43,7 @@ it('provider keys are explicit and cannot mutate another service credential',asy
  expect((await host.endpoint('setKey',{provider:'invalid',value:'synthetic-key'})).status).toBe(400)
  expect(writes).toHaveLength(1)
 })
-it('spec Scenario "key 的只读来源与迁移"',async()=>{
+it('spec Scenario "Read-only key source and migration"',async()=>{
  let writes=0
  const host=fixture({describe:async()=>({configured:true,source:'env',writable:false}),set:async()=>{writes++},unset:async()=>{writes++}})
  for(const value of ['new-secret',null]){
@@ -71,7 +71,7 @@ it('absent_credentials_read_launch_environment_and_failed_models_do_not_hide_hea
  expect(JSON.stringify(view)).not.toContain('test-secret')
 })
 
-it('spec Scenario "测试连接使用所选预设"', async () => {
+it('spec Scenario "Connection testing uses the selected preset"', async () => {
   const { harness: mainHarness, closeHarness } = await import('./host-harness.js')
   const { json } = await import('./fake-jev.js')
   const { resolvePreset } = await import('../src/presets/index.js')

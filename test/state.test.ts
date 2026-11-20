@@ -36,7 +36,7 @@ it('disk_state_rejects_malformed_shape',()=>{
  writeFileSync(file,JSON.stringify({mode:'SOMETIMES'}))
  expect(()=>store.get('S')).toThrow()
 })
-it('spec Scenario "重复同模式设置无副作用"', () => {
+it('spec Scenario "Setting the same mode again has no side effects"', () => {
   const { state, writes } = fixture()
   state.setMode('S', 'MANUAL')
   expect(writes()).toBe(0)
@@ -59,7 +59,7 @@ it('disable_persists_and_auto_clears',()=>{
  state.setMode('S','AUTO')
  expect(state.read('S').disabled).toBeUndefined()
 })
-it('spec Scenario "旧状态文件可读"',()=>{
+it('spec Scenario "Old state files remain readable"',()=>{
  const directory=mkdtempSync(join(tmpdir(),'router-legacy-'))
  const store=new FileStateStore(directory)
  store.set('S',{mode:'AUTO'})

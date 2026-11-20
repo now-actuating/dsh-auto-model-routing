@@ -42,7 +42,7 @@ function generation(locale: ReturnType<typeof strictLocale>) {
   }
 }
 
-it('重建后的客户端 bundle 可以重新 apply（语言字典随条目释放）', () => {
+it('A rebuilt client bundle can be applied again after its locale registration is disposed', () => {
   const locale = strictLocale()
   const first = generation(locale)
   first.apply()
@@ -55,7 +55,7 @@ it('重建后的客户端 bundle 可以重新 apply（语言字典随条目释�
   second.teardown()
 })
 
-it('卸载后不再占用语言命名空间', () => {
+it('Unloading releases the locale namespace', () => {
   const locale = strictLocale()
   const module = generation(locale)
   module.apply()

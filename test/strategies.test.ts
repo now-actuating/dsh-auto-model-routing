@@ -9,7 +9,7 @@ const deepseek: FamilyStrategy = {
 }
 const [claude, codex] = BUILTIN_STRATEGIES
 
-it('spec Scenario "内置注册表可构造且不含 provider 知识"', () => {
+it('spec Scenario "The built-in registry can be constructed without provider-specific knowledge"', () => {
   expect(() => createRegistry(BUILTIN_STRATEGIES)).not.toThrow()
   const extended = createRegistry([...BUILTIN_STRATEGIES, deepseek])
   expect(extended.ids()).toEqual(['claude', 'codex', 'deepseek'])
@@ -18,7 +18,7 @@ it('spec Scenario "内置注册表可构造且不含 provider 知识"', () => {
   expect('hasProvider' in extended).toBe(false)
 })
 
-describe('spec Scenario "冲突的注册表拒绝构造"', () => {
+describe('spec Scenario "Conflicting registry entries are rejected"', () => {
   const cases: [string, FamilyStrategy[], RegExp][] = [
     ['duplicate id', [claude!, codex!, { ...deepseek, id: 'codex' }], /codex/],
     ['overlapping model prefix', [claude!, codex!, { ...deepseek, modelPrefixes: ['GPT-6-'] }], /GPT-6-.*gpt-|gpt-.*GPT-6-/],
@@ -39,7 +39,7 @@ const ALL = ['low', 'medium', 'high', 'xhigh', 'max']
 /** Intentional deviation from the frozen 0.4.2 oracle: Sol starts at high, one step above it. */
 const solRaised = (model: string, effort: string) =>
   /(^|\/)gpt-6\.1-sol$/.test(model) ? ({ low: 'medium', medium: 'high', high: 'xhigh' } as Record<string, string>)[effort] ?? effort : effort
-it('spec Scenario "effort 起点按模型名查找且保持原结果"', () => {
+it('spec Scenario "Effort baselines are looked up by model name and preserve prior results"', () => {
   expect(oracle.effortStarts.length).toBe(72)
   for (const row of oracle.effortStarts) {
     const run = () => policyEffort(row.model, row.depth as never, ALL, 'xhigh', row.defaultEffort ?? undefined)
@@ -52,11 +52,11 @@ it('spec Scenario "effort 起点按模型名查找且保持原结果"', () => {
   expect(registry.effortStart('CLAUDE-OPUS-5-5')).toBeUndefined()
 })
 
-it('spec Scenario "effort 边界保持原结果"', () => {
+it('spec Scenario "Effort boundary behavior is unchanged"', () => {
   expect(oracle.effortBoundaries.length).toBe(6)
   for (const row of oracle.effortBoundaries) {
     const run = () => policyEffort(row.model, row.depth as never, row.supported, row.cap as never, row.defaultEffort ?? undefined)
-    if ('error' in row) expect(run, JSON.stringify(row)).toThrow('起点不可验证')
+    if ('error' in row) expect(run, JSON.stringify(row)).toThrow('Cannot verify the recommended starting effort')
     else expect(run(), JSON.stringify(row)).toBe(row.value)
   }
 })

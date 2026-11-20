@@ -16,7 +16,7 @@ export function validatePolicyRoute(catalog, provider, model, effort, cap) {
     const entry = catalog.models.find(m => m.provider === provider && m.model === model);
     const validId = magpieProvider(provider) ? /^[A-Za-z0-9._:-]+(?:\/[A-Za-z0-9._:-]+)+$/.test(model) && model.length <= 128 : MODEL_ID_PATTERN.test(model);
     if (!policyProvider(provider) || !validId || !entry || !AUTO_EFFORTS.includes(effort) || AUTO_EFFORTS.indexOf(effort) > AUTO_EFFORTS.indexOf(cap) || !entry.reasoningEfforts.includes(effort) || catalog.childAllowlist.status !== 'enabled' || !catalog.childAllowlist.allowedModels.some(m => m.provider === provider && m.model === model))
-        throw new Error('策略路由不在当前目录/允许列表或 effort 上限内；暂停委派并询问用户');
+        throw new Error('The policy route violates the current catalog, allowlist, or effort cap; pause delegation and ask the user');
 }
 // Versioned initial slots; Codex currently has only two approved capability models.
 export const POLICY_MODELS = {
@@ -29,23 +29,23 @@ export function policyEffort(model, depth, supported, cap, defaultEffort) {
     const known = /^(claude-(haiku|sonnet|opus)-5-5|claude-fable-5-1|gpt-6-luna|gpt-6\.1-sol|gpt-6-astra)$/.test(bare);
     const start = known ? targetEffort(bare, 'standard') : defaultEffort;
     if (!start)
-        throw new Error('unsupported：模型缺少可验证的默认 effort');
+        throw new Error('unsupported: the model has no verifiable default effort');
     const baseline = AUTO_EFFORTS.indexOf(start);
     if (baseline < 0 || !supported.includes(start))
-        throw new Error('模型推荐 effort 起点不可验证，请先配置受支持模型');
+        throw new Error('Cannot verify the recommended starting effort; configure a supported model first');
     const candidates = AUTO_EFFORTS.filter(e => supported.includes(e));
     const index = candidates.indexOf(start);
     const offset = depth === 'lower' ? -1 : depth === 'higher' ? 1 : 0;
     const chosen = candidates[Math.max(0, Math.min(candidates.length - 1, index + offset))];
     const allowed = candidates.filter(e => AUTO_EFFORTS.indexOf(e) <= AUTO_EFFORTS.indexOf(cap));
     if (!allowed.length)
-        throw new Error('没有上限内的受支持 effort');
+        throw new Error('No supported effort within the cap');
     return AUTO_EFFORTS.indexOf(chosen) > AUTO_EFFORTS.indexOf(cap) ? allowed.at(-1) : chosen;
 }
 export function choosePolicyRoute(provider, capability, depth, catalog, cap, explicit = {}, family) {
     const selectedFamily = magpieProvider(provider) ? family : provider;
     if (!explicit.model && !selectedFamily)
-        throw new Error('unsupported：没有已定义的模型能力家族；请显式指定模型');
+        throw new Error('unsupported: no model capability family is defined; specify a model explicitly');
     const model = explicit.model ?? `${magpieProvider(provider) ? `${selectedFamily}/` : ''}${POLICY_MODELS[selectedFamily][capability]}`;
     const entry = catalog.models.find(m => m.provider === provider && m.model === model);
     const reasoningEffort = explicit.reasoningEffort ?? policyEffort(model, depth, entry?.reasoningEfforts ?? [], cap, entry?.defaultEffort);

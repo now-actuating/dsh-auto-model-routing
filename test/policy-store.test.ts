@@ -12,14 +12,14 @@ it.each(['claude','dsh-magpie-connect','dsh-magpie-connector'] as const)('restor
   expect(readFileSync(file,'utf8')).not.toContain('task')
   expect(() => store.set({ ...record, task: 'raw task' } as ChildDecision)).toThrow()
   writeFileSync(file,JSON.stringify({ ...record, childId: 'other' }))
-  expect(() => store.get(record.childId)).toThrow('无法恢复')
+  expect(() => store.get(record.childId)).toThrow('Cannot restore the subtask decision')
   writeFileSync(file,'broken')
-  expect(() => store.get(record.childId)).toThrow('无法恢复')
+  expect(() => store.get(record.childId)).toThrow('Cannot restore the subtask decision')
 })
 
 const base = (childId: string): ChildDecision => ({ childId, parentId: 'parent', rootId: 'root', status: 'recommended', path: 'ordinary', explicit: { provider: 'traex' } })
 const route = { provider: 'traex', model: 'GPT-5.6-Sol', reasoningEffort: 'medium' as const }
-it('spec Scenario "新初始记录缺少父快照被拒"', () => {
+it('spec Scenario "Reject new initial records without a parent snapshot"', () => {
   const dir = mkdtempSync(join(tmpdir(),'policy-store-')), store = new PolicyStore(dir)
   expect(() => store.create(base('new'))).toThrow('parentSelection')
   expect(store.get('new')).toBeUndefined(); expect(store.wasBound('new')).toBe(false)
@@ -29,7 +29,7 @@ it('spec Scenario "新初始记录缺少父快照被拒"', () => {
   store.create({ ...base('ok'), parentSelection: { provider: 'traex', model: 'GPT-5.6-Sol' } })
   expect(store.wasBound('ok')).toBe(true)
 })
-it('spec Scenario "矛盾的记录组合被拒绝"', () => {
+it('spec Scenario "Reject inconsistent record combinations"', () => {
   const dir = mkdtempSync(join(tmpdir(),'policy-store-')), store = new PolicyStore(dir)
   const bad: ChildDecision[] = [
     { ...base('a'), status: 'unsupported', reason: 'no-usable-route', route },
@@ -40,10 +40,10 @@ it('spec Scenario "矛盾的记录组合被拒绝"', () => {
     expect(() => store.set(record), record.childId).toThrow()
     // Read side: a file written behind the store's back is equally rejected.
     writeFileSync(join(dir, `${(store as unknown as { path(id: string): string }).path(record.childId).split('/').pop()}`), JSON.stringify(record))
-    expect(() => store.get(record.childId), record.childId).toThrow('无法恢复')
+    expect(() => store.get(record.childId), record.childId).toThrow('Cannot restore the subtask decision')
   }
-  expect(() => store.set({ ...base('d'), status: 'unsupported', reason: 'whatever' })).toThrow('未知的未路由原因')
+  expect(() => store.set({ ...base('d'), status: 'unsupported', reason: 'whatever' })).toThrow('Unknown reason for not routing')
   // A route-bearing failed record stays readable; the host rejects its requests.
-  store.set({ ...base('e'), status: 'failed', route, reason: '实际请求配置不匹配' })
+  store.set({ ...base('e'), status: 'failed', route, reason: 'Actual request settings do not match the route' })
   expect(store.get('e')?.status).toBe('failed')
 })

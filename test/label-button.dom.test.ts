@@ -71,16 +71,16 @@ it('unbound replies do not register an exposure observer',async()=>{
   expect(observer).not.toHaveBeenCalled()
  }finally{vi.unstubAllGlobals()}
 })
-it('spec Scenario "修改撤销"',async()=>{
+it('spec Scenario "Change and withdraw a rating"',async()=>{
  let feedback:string|null|undefined;let fail=false
  const {rpc}=rpcFrom(p=>{if(Object.hasOwn(p,'feedback')){if(fail)return {ok:false};feedback=p.feedback}return {ok:true,value:{depth:'baseline',effort:'medium',model:'sol',feedback}}})
  await mount('new',rpc)
  const choose=async(text:string)=>{await act(async()=>{(host.querySelector('button[aria-label]') as HTMLButtonElement).click()});await act(async()=>{(Array.from(host.querySelectorAll('[role=menuitem]')).find(e=>e.textContent===text) as HTMLButtonElement).click()})}
- await choose('投入偏高');expect(tooltip()).toContain('你反馈：投入偏高')
- await choose('撤销反馈');expect(tooltip()).not.toContain('你反馈')
- fail=true;await choose('分配合适');expect(host.querySelector('[role=alert]')?.textContent).toBe('反馈未保存，请重试');expect(tooltip()).not.toContain('你反馈')
+ await choose('investment too high');expect(tooltip()).toContain('your rating: investment too high')
+ await choose('Withdraw rating');expect(tooltip()).not.toContain('your rating')
+ fail=true;await choose('allocation fits');expect(host.querySelector('[role=alert]')?.textContent).toBe('Feedback was not saved, please retry');expect(tooltip()).not.toContain('your rating')
 })
-it('spec Scenario "label 响应以绑定是否存在区分"', async () => {
+it('spec Scenario "The label response distinguishes sessions with and without bindings"', async () => {
   vi.useFakeTimers(); let intersect!: (entries: unknown[]) => void
   const created = vi.fn()
   vi.stubGlobal('IntersectionObserver', class { constructor(cb: (entries: unknown[]) => void) { created(); intersect = cb } observe() {} disconnect() {} })
@@ -93,7 +93,7 @@ it('spec Scenario "label 响应以绑定是否存在区分"', async () => {
     expect(host.innerHTML).toBe('')
     expect(created).not.toHaveBeenCalled()
     await mount('m1', rpc)
-    expect(tooltip()).toMatch(/^AUTO 分配：higher → high · claude-opus-5-5/)
+    expect(tooltip()).toMatch(/^AUTO allocation: higher → high · claude-opus-5-5/)
     expect(host.querySelector('[data-icon=gauge]')).not.toBeNull()
     intersect([{ isIntersecting: true, intersectionRatio: 1 }]); await vi.advanceTimersByTimeAsync(3000)
     expect(calls.filter(c => c.endpoint.endsWith('.observe')).map(c => c.payload.messageId)).toEqual(['m1'])

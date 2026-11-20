@@ -26,7 +26,7 @@ const pkg = resolve(import.meta.dirname, '..')
 const read = (path: string) => readFileSync(path, 'utf8')
 const files = (root: string, ext: RegExp) => readdirSync(root, { recursive: true, encoding: 'utf8' }).filter(f => ext.test(f)).map(f => [f, read(join(root, f))] as const)
 
-it('spec Scenario "源码与文案不含版本"', () => {
+it('spec Scenario "Source and copy do not contain version markers"', () => {
  // 1. Build from an output directory that still holds 0.4.2 artifacts, then list the npm package.
  const work = mkdtempSync(join(tmpdir(), 'amr-pack-'))
  try {
@@ -63,7 +63,7 @@ it('spec Scenario "源码与文案不含版本"', () => {
  const description = /description: '([^']*)'/.exec(tool)![1]!
  const params = [...tool.matchAll(/description: '([^']*)' \}/g)].map(m => m[1]).join('\n')
  const skills = ['subagent-model-routing', 'auto-model-routing-report'].map(s => read(join(pkg, 'skills', s, 'SKILL.md')))
- for (const text of [description, params, ...skills]) for (const word of ['policy-v2', 'legacy', '原策略', '旧策略', '回滚']) expect(text, word).not.toContain(word)
+ for (const text of [description, params, ...skills]) for (const word of ['policy-v2', 'legacy', 'original policy', 'old policy', 'rollback']) expect(text, word).not.toContain(word)
 
  // 4. The rule file is byte-identical to the one before the rename.
  expect(createHash('sha256').update(readFileSync(join(pkg, 'src/presets/reasoning-depth/rubric.json'))).digest('hex')).toBe(oracle.rubricSha256)

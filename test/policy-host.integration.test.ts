@@ -32,7 +32,7 @@ it('child decision persists separate confidences and actual application without 
  expect(JSON.stringify(record)).not.toContain('mechanical transformation')
  await h.restart();expect(h.store.get(child.id)?.decision?.capabilityConfidence).toBe(.71)
 })
-it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "新旧 Magpie 子实例保持精确身份并恢复" (%s)',async(provider)=>{
+it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "Old and new Magpie child instances retain exact identity through recovery" (%s)',async(provider)=>{
  const h=await harness(provider)
  expect((await h.invoke()).isError).not.toBe(true)
  const child=h.handles[1]!.agent
@@ -49,7 +49,7 @@ it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('%s main keeps t
  expect(h.calls.at(-1)).toMatchObject({provider,model:'claude/claude-opus-5-5',reasoningEffort:'high'})
  expect(h.parent.session.requestHeader()?.config).toMatchObject({provider,model:'claude/claude-opus-5-5',reasoningEffort:'high'})
 })
-it.each([false,'dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "同次主请求同步官方 effort 与 defaults" (%s)',async(provider)=>{
+it.each([false,'dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "The same main request synchronizes official effort and defaults" (%s)',async(provider)=>{
  const h=await harness(provider,true)
  h.jev.set(json(200,{answers:{depth:{choice:'higher'}}}))
  await h.run(h.parent,'Main task with an explicit medium pick')
@@ -69,7 +69,7 @@ it.each([false,'dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scen
  expect(h.calls.at(-1)).toMatchObject(route)
  expect(h.selections).toHaveLength(1)
 })
-it.each([true,'missing'] as const)('spec Scenario "同步失败不丢本次请求" (%s)',async(selectFails)=>{
+it.each([true,'missing'] as const)('spec Scenario "A synchronization failure does not drop the request" (%s)',async(selectFails)=>{
  const h=await harness(false,true,'claude',selectFails)
  h.jev.set(json(200,{answers:{depth:{choice:'higher'}}}))
  await h.run(h.parent,'Keep one consistent effort if synchronization cannot complete')
@@ -81,7 +81,7 @@ it.each([true,'missing'] as const)('spec Scenario "同步失败不丢本次请�
  expect(h.warnings).toHaveBeenCalledWith(expect.stringContaining('could not sync the model selection'))
  expect(h.modes.get(h.parent.id)?.mode).toBe('AUTO')
 })
-it('spec Scenario "手动与子请求不污染默认"',async()=>{
+it('spec Scenario "Manual and child requests do not modify defaults"',async()=>{
  const h=await harness(false,true)
  await h.run(h.parent,'Baseline uses the existing medium choice')
  h.modes.set(h.parent.id,{mode:'MANUAL'})
@@ -97,7 +97,7 @@ it.each([
  await h.run(h.parent, 'GPT main task')
  expect(h.calls.at(-1)).toMatchObject({ provider: 'codex', model: 'gpt-6.1-sol', reasoningEffort: effort })
 })
-it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "Magpie 自动子路由" (%s)',async(provider)=>{
+it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "Automatic Magpie child routing" (%s)',async(provider)=>{
  const h=await harness(provider,true,'codex')
  h.jev.set(json(200,{answers:{capability:{choice:'bounded'},depth:{choice:'higher'}}}))
  await h.run(h.parent,'GPT main task')
@@ -128,7 +128,7 @@ it('binds concurrent tool-created identities, records actual requests, and resto
   expect(h.calls.at(-1)?.model).toBe(h.store.get(child.id)?.route?.model)
   expect(h.jev.bodies).toHaveLength(1)
 })
-it('spec Scenario "MANUAL 时创建的子会话在切到 AUTO 后仍放行"', async () => {
+it('spec Scenario "Children created in MANUAL still pass through after switching to AUTO"', async () => {
   const h = await harness(); h.modes.set(h.parent.id,{ mode: 'MANUAL' })
   await h.invoke()
   const child = h.handles[1]!.agent
@@ -141,7 +141,7 @@ it('spec Scenario "MANUAL 时创建的子会话在切到 AUTO 后仍放行"', as
   expect(h.calls.at(-1)).toMatchObject({ provider: 'claude', model: 'claude-opus-5-5' })
   expect(h.jev.bodies).toHaveLength(0); expect(h.store.get(child.id)).toBeUndefined(); expect(h.store.wasBound(child.id)).toBe(false)
 })
-it('spec Scenario "子会话不走主会话判断"', async () => {
+it('spec Scenario "Child sessions bypass main-session judgment"', async () => {
   const h = await harness()
   h.ctx.on('agent/pre-step',async(payload,next)=>{
     const decision=await next()
@@ -153,14 +153,14 @@ it('spec Scenario "子会话不走主会话判断"', async () => {
   expect(body.state).toContain('Apply the exact supplied mechanical transformation')
   expect(body.state).not.toContain('PRIVATE_RUNTIME_CONTEXT')
 })
-it('spec Scenario "AUTO 不改主 provider/model"', async () => {
+it('spec Scenario "AUTO does not change the main provider or model"', async () => {
   const h = await harness()
   h.jev.set(json(200,{ answers: { depth: { choice: 'higher' } } }))
   await h.run(h.parent,'Reason carefully about the constraint conflict')
   expect(h.calls.at(-1)).toMatchObject({ provider: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'high' })
   expect((h.jev.bodies[0] as { questions: unknown }).questions).not.toHaveProperty('capability')
 })
-it('spec Scenario "异步解析期间切 MANUAL 不覆盖主请求"', async () => {
+it('spec Scenario "Switching to MANUAL during async resolution leaves the main request unchanged"', async () => {
   const h=await harness()
   const resolve=h.ctx.llm.resolveModelInfo.bind(h.ctx.llm)
   h.ctx.llm.resolveModelInfo=async(...args)=>{const info=await resolve(...args);h.modes.set(h.parent.id,{mode:'MANUAL'});return info}
@@ -192,7 +192,7 @@ it('missing context falls back to DSH defaults without changing root AUTO', asyn
   expect(h.store.get(child.id)?.route).toBeUndefined()
   expect(h.modes.get(h.parent.id)?.mode).toBe('AUTO')
 })
-it('spec Scenario "子任务 Jev 失败不改写"', async () => {
+it('spec Scenario "A subtask Jev failure does not rewrite the request"', async () => {
   const h = await harness(); h.jev.set(json(402,{}))
   await h.invoke()
   const child = h.handles[1]!.agent
@@ -203,7 +203,7 @@ it('spec Scenario "子任务 Jev 失败不改写"', async () => {
   await h.run(child,'Try again without a new resource decision')
   expect(h.jev.bodies).toHaveLength(1)
 })
-it.each([false,'dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "更新全局目录不能扩大父 captured allowlist" (%s)', async (magpie) => {
+it.each([false,'dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "Global catalog updates cannot widen the parent captured allowlist" (%s)', async (magpie) => {
   const h = await harness(magpie)
   ;(h.parent.session.append as unknown as (type:string,data:unknown)=>unknown)('subagent/model-selection-policy',{ allowedModels: [{provider:magpie||'claude',model:magpie?'claude/claude-opus-5-5':'claude-opus-5-5'}] })
   await h.invoke()
@@ -225,13 +225,13 @@ it('actual request mismatch is recorded as failed rather than applied', async ()
   expect(h.store.get(h.handles[1]!.agent.id)?.status).toBe('failed')
   expect(h.calls.filter(c => c.sessionId === h.handles[1]!.agent.id)).toHaveLength(0)
 })
-it('spec Scenario "fork 子会话与父会话一致"', async () => {
+it('spec Scenario "A forked child matches its parent session"', async () => {
   const h = await harness(); let ran = false
   h.ctx.tools.register(defineTool({ name: 'subagent_fork', description: 'offline fork boundary', parameters: {}, output: { schema: { type: 'object', additionalProperties: false, properties: {} }, render: () => [] }, execute: async () => { ran = true; return {} } }))
   const result = await callTool(h.ctx, h.parent, 'subagent_fork')
   expect(result.isError).not.toBe(true); expect(ran).toBe(true); expect(h.jev.bodies).toHaveLength(0)
 })
-it('spec Scenario "不支持模型的请求不再导致整轮失败"', async () => {
+it('spec Scenario "A request for an unsupported model no longer fails the whole turn"', async () => {
   const h = await harness(false, false, 'claude', false, { provider: 'opencode-go', model: 'deepseek-v4.1-flash', efforts: ['low','high','max'], defaultEffort: 'max' })
   h.modes.set(h.parent.id, { mode: 'MANUAL' })
   await h.run(h.parent, 'manual baseline on an unsupported main model')
@@ -248,7 +248,7 @@ it('spec Scenario "不支持模型的请求不再导致整轮失败"', async () 
   const ends = h.parent.session.snapshotEvents().filter(event => event.type === 'turn/end')
   expect((ends.at(-1)!.data as { reason: { kind: string } }).reason.kind).toBe('completed')
 })
-it('spec Scenario "支持范围内映射不可得不阻断请求"', async () => {
+it('spec Scenario "An unavailable mapping for a supported model does not block requests"', async () => {
   const h = await harness(false, false, 'claude', false, { efforts: ['max'], defaultEffort: 'max' })
   h.jev.set(json(200,{ answers: { depth: { choice: 'higher' } } }))
   h.modes.set(h.parent.id, { mode: 'MANUAL' })
@@ -265,7 +265,7 @@ it('spec Scenario "支持范围内映射不可得不阻断请求"', async () => 
   const ends = h.parent.session.snapshotEvents().filter(event => event.type === 'turn/end')
   expect((ends.at(-1)!.data as { reason: { kind: string } }).reason.kind).toBe('completed')
 })
-it('spec Scenario "切回受支持模型后恢复可切换"', async () => {
+it('spec Scenario "Returning to a supported model unlocks mode switching"', async () => {
   const h = await harness()
   h.pickMain('opencode-go', 'deepseek-v4.1-flash')
   expect(await h.callEndpoint('state', { sessionId: h.parent.id })).toMatchObject({
@@ -281,7 +281,7 @@ it('spec Scenario "切回受支持模型后恢复可切换"', async () => {
 })
 
 const deepseek: FamilyStrategy = { id: 'deepseek', label: 'DeepSeek', modelPrefixes: ['deepseek-'], effortStarts: { 'deepseek-v5': 'medium' }, childModels: { bounded: 'deepseek-v5', analytical: 'deepseek-v5', frontier: 'deepseek-v5' } }
-it('spec Scenario "新增家族只需新增策略"', async () => {
+it('spec Scenario "Adding a model family only requires a new strategy"', async () => {
  const strategies = [...BUILTIN_STRATEGIES, deepseek]
  expect(() => createRegistry(strategies)).not.toThrow()
  const h = await harness(false, false, 'deepseek', false, {}, strategies)
@@ -301,7 +301,7 @@ it('spec Scenario "新增家族只需新增策略"', async () => {
  // No provider registry: the preview tool takes any provider and has no family parameter.
  expect(JSON.stringify((h.tools().get('route_subagent') as unknown as { parameters: unknown }).parameters)).not.toContain('family')
 })
-it('spec Scenario "记录中的家族已不在注册表"', async () => {
+it('spec Scenario "The model family in the record is no longer registered"', async () => {
  const h = await harness(false, false, 'deepseek', false, {}, [...BUILTIN_STRATEGIES, deepseek])
  h.jev.set(json(200, { answers: { capability: { choice: 'bounded' }, depth: { choice: 'baseline' } } }))
  expect((await h.invoke()).isError).not.toBe(true)
@@ -316,7 +316,7 @@ const VERSION_KEYS = ['policy', 'policyVersion', 'mappingVersion', 'rubricVersio
 /** Every key at any depth of a JSON value. */
 const keysOf = (value: unknown): string[] => Array.isArray(value) ? value.flatMap(keysOf) : value && typeof value === 'object' ? Object.entries(value).flatMap(([k, v]) => [k, ...keysOf(v)]) : []
 const noVersionKeys = (label: string, value: unknown) => { for (const key of VERSION_KEYS) expect(keysOf(value), `${label}: ${key}`).not.toContain(key) }
-it('spec Scenario "新写入不含版本字段"', async () => {
+it('spec Scenario "New records omit version fields"', async () => {
  const h = await harness(); h.setAnswer('reply')
  const ledger = join(h.home, 'state/auto-model-routing/allocation-feedback.jsonl')
  const before = (() => { try { return readFileSync(ledger, 'utf8') } catch { return '' } })()
@@ -359,7 +359,7 @@ async function legacyChild(h: Awaited<ReturnType<typeof harness>>, id: string, r
  await h.ctx.serial('agent/created', { agent: child.agent, source: 'resume' })
  return child.agent
 }
-it('spec Scenario "旧子会话记录恢复不比较版本"', async () => {
+it('spec Scenario "Old child records restore without comparing versions"', async () => {
  const h = await harness()
  await h.restart()
  const child = await legacyChild(h, 'old-child', legacyRecord('old-child', h.parent.id))
@@ -372,7 +372,7 @@ it('spec Scenario "旧子会话记录恢复不比较版本"', async () => {
  for (const key of ['version', 'policyVersion', 'mappingVersion']) expect(rewritten).not.toHaveProperty(key)
  expect(rewritten.route).toEqual({ provider: 'claude', model: 'claude-haiku-5-5', reasoningEffort: 'medium' })
 })
-it('spec Scenario "决策记录只容忍已知的历史键"', async () => {
+it('spec Scenario "Decision records tolerate only known historical keys"', async () => {
  const h = await harness()
  const ok = await legacyChild(h, 'c-ok', legacyRecord('c-ok', h.parent.id))
  const bad = [
@@ -389,14 +389,14 @@ it('spec Scenario "决策记录只容忍已知的历史键"', async () => {
  }
  expect(h.calls).toHaveLength(requests)
  expect(h.jev.bodies).toHaveLength(judged)
- for (const id of ['c-task', 'c-rout', 'c-v2', 'c-id']) expect(() => h.store.get(id), id).toThrow('无法恢复')
+ for (const id of ['c-task', 'c-rout', 'c-v2', 'c-id']) expect(() => h.store.get(id), id).toThrow('Cannot restore the subtask decision')
  const { task: _, ...valid } = legacyRecord('c-write', h.parent.id, { task: 'x' }) as Record<string, unknown>
  const { version: _v, policyVersion: _p, mappingVersion: _m, ...canonical } = valid
  expect(() => h.store.set({ ...canonical, task: 'raw' } as never)).toThrow()
  expect(() => h.store.set(valid as never)).toThrow()
  expect(() => h.store.set(canonical as never)).not.toThrow()
 })
-it('spec Scenario "绑定标记存在但记录缺失或损坏"', async () => {
+it('spec Scenario "A binding marker exists but the record is missing or corrupt"', async () => {
  const h = await harness()
  const missing = await legacyChild(h, 'c-missing', undefined)
  const mismatched = await legacyChild(h, 'c-marker', legacyRecord('c-marker', h.parent.id), 'other-id')
@@ -405,7 +405,7 @@ it('spec Scenario "绑定标记存在但记录缺失或损坏"', async () => {
  expect(h.calls).toHaveLength(requests)
  expect(h.jev.bodies).toHaveLength(judged)
 })
-it('spec Scenario "主决策在请求前后的状态"', async () => {
+it('spec Scenario "Main decision state before and after a request"', async () => {
  const h = await harness(false, false, 'claude', false, { efforts: ['max'], defaultEffort: 'max' })
  h.jev.set(json(200, { answers: { depth: { choice: 'higher' } } }))
  const states: unknown[] = []
@@ -425,13 +425,13 @@ it('spec Scenario "主决策在请求前后的状态"', async () => {
  expect(h.jev.bodies).toHaveLength(1)
  expect(h.modes.get(h.parent.id)?.mode).toBe('AUTO'); expect(h.modes.get(h.parent.id)?.disabled).toBeUndefined()
 })
-it('spec Scenario "完全显式的子任务决策可见"', async () => {
+it('spec Scenario "Fully explicit subtask decisions are visible"', async () => {
  const h = await harness()
  expect((await h.invoke({ model: 'claude-sonnet-5-5', reasoning_effort: 'low' })).isError).not.toBe(true)
  expect(h.jev.bodies).toHaveLength(0)
- expect((await h.callEndpoint('state', { sessionId: h.parent.id })).decision).toMatchObject({ source: 'subagent', decisionProvider: 'explicit', decisionModel: '未调用', ms: 0, status: 'applied' })
+ expect((await h.callEndpoint('state', { sessionId: h.parent.id })).decision).toMatchObject({ source: 'subagent', decisionProvider: 'explicit', decisionModel: 'not called', ms: 0, status: 'applied' })
 })
-it('spec Scenario "切换到不支持的主模型自动锁定"', async () => {
+it('spec Scenario "Switching to an unsupported main model locks AUTO"', async () => {
  const h = await harness(false, false, 'claude', false, { provider: 'opencode-go', model: 'deepseek-v4.1-flash', efforts: ['low', 'high', 'max'], defaultEffort: 'max' })
  h.modes.set(h.parent.id, { mode: 'MANUAL' })
  await h.run(h.parent, 'manual baseline')
@@ -446,7 +446,7 @@ it('spec Scenario "切换到不支持的主模型自动锁定"', async () => {
  const attempt = h.calls.at(-1)!
  expect({ provider: attempt.provider, model: attempt.model, reasoningEffort: attempt.reasoningEffort }).toEqual({ provider: official.provider, model: official.model, reasoningEffort: official.reasoningEffort })
 })
-it('spec Scenario "插件直接创建的子会话原样放行"', async () => {
+it('spec Scenario "Children created directly by a plugin pass through unchanged"', async () => {
  const h = await harness()
  const judged = h.jev.bodies.length
  // Pet locus style: created by Host code, outside any official tool window.
@@ -458,7 +458,7 @@ it('spec Scenario "插件直接创建的子会话原样放行"', async () => {
  expect(h.store.get(child.agent.id)).toBeUndefined(); expect(h.store.wasBound(child.agent.id)).toBe(false)
  expect(await h.callEndpoint('childRouting', { sessionId: child.agent.id })).toMatchObject({ status: 'unsupported' })
 })
-it('spec Scenario "父模型不在允许列表时不改写" (traex parent)', async () => {
+it('spec Scenario "Do not rewrite when the parent model is outside the allowlist" (traex parent)', async () => {
  const h = await harness(false, false, 'codex', false, { provider: 'traex', model: 'GPT-5.6-Sol', efforts: ['low','medium','high','xhigh'], defaultEffort: 'medium' })
  h.jev.set(json(200, { answers: { capability: { choice: 'bounded' }, depth: { choice: 'higher' } } }))
  const result = await h.invoke()
@@ -469,12 +469,12 @@ it('spec Scenario "父模型不在允许列表时不改写" (traex parent)', asy
  expect(state.childNotice).toMatchObject({ childId: child.id, reason: 'no-usable-route' })
  expect(h.warnings.mock.calls.some(([m]) => String(m).includes(child.id))).toBe(true)
 })
-it('spec Scenario "子会话状态返回不适用" and scopeNote', async () => {
+it('spec Scenario "Child session status reports when routing does not apply" and scopeNote', async () => {
  const h = await harness()
  await h.invoke()
  const child = h.handles[1]!.agent
  expect(await h.callEndpoint('state', { sessionId: child.id })).toEqual({ applicable: false })
- expect((await h.callEndpoint('childRouting', { sessionId: child.id })).scopeNote).toBe('按官方工具 ALS 上下文、同父与 startup 绑定；不能区分同窗口插件旁支，旁支可能一并受管。')
+ expect((await h.callEndpoint('childRouting', { sessionId: child.id })).scopeNote).toBe('Binding uses the official tool ALS context, the same parent, and startup. Plugin-created siblings in the same window cannot be distinguished and may also be managed.')
 })
 
 type H = Awaited<ReturnType<typeof harness>>
@@ -497,8 +497,8 @@ const pluginChild = async (h: H, id: string) => {
  await h.run(child.agent, 'Plugin-owned work')
  return child.agent
 }
-const SCOPE_NOTE = '按官方工具 ALS 上下文、同父与 startup 绑定；不能区分同窗口插件旁支，旁支可能一并受管。'
-it('spec Scenario "官方工具创建的子会话受管"', async () => {
+const SCOPE_NOTE = 'Binding uses the official tool ALS context, the same parent, and startup. Plugin-created siblings in the same window cannot be distinguished and may also be managed.'
+it('spec Scenario "Child sessions created by the official tool are managed"', async () => {
  const h = await harness()
  await h.invoke()
  const child = h.handles[1]!.agent
@@ -506,7 +506,7 @@ it('spec Scenario "官方工具创建的子会话受管"', async () => {
  expect(h.store.get(child.id)).toMatchObject({ status: 'applied', route: { provider: 'claude', model: 'claude-haiku-5-5', reasoningEffort: 'medium' } })
  expect(h.calls.filter(c => c.sessionId === child.id).at(-1)).toMatchObject({ provider: 'claude', model: 'claude-haiku-5-5', reasoningEffort: 'medium' })
 })
-it('spec Scenario "孙会话以直接父会话为锚"', async () => {
+it('spec Scenario "Grandchild sessions use their immediate parent as the anchor"', async () => {
  const h = await harness(); const { spawn } = spawner(h)
  await h.invoke()
  const child = h.handles[1]!.agent
@@ -514,7 +514,7 @@ it('spec Scenario "孙会话以直接父会话为锚"', async () => {
  const grandchild = h.handles.at(-1)!.agent
  expect(h.store.get(grandchild.id)).toMatchObject({ parentId: child.id, rootId: h.parent.id, route: { provider: 'claude' } })
 })
-it('spec Scenario "创建期间根会话离开 AUTO 则不受管"', async () => {
+it('spec Scenario "Children remain unmanaged if the root leaves AUTO during creation"', async () => {
  const h = await harness(); const { ctrl, spawn } = spawner(h)
  ctrl.before = () => h.modes.set(h.parent.id, { mode: 'MANUAL' })
  expect((await spawn()).isError).not.toBe(true)
@@ -523,7 +523,7 @@ it('spec Scenario "创建期间根会话离开 AUTO 则不受管"', async () => 
  expect(h.calls.filter(c => c.sessionId === child.id).at(-1)).toMatchObject({ provider: 'claude', model: 'claude-opus-5-5' })
  expect(h.jev.bodies).toHaveLength(0)
 })
-it('spec Scenario "恢复通知不重写已有绑定"', async () => {
+it('spec Scenario "Recovery notifications do not rewrite existing bindings"', async () => {
  const h = await harness(); const { ctrl, spawn } = spawner(h)
  await h.invoke()
  const child = h.handles[1]!.agent
@@ -538,7 +538,7 @@ it('spec Scenario "恢复通知不重写已有绑定"', async () => {
  await h.run(child, 'Next message')
  expect(h.calls.filter(c => c.sessionId === child.id).at(-1)).toMatchObject({ model: 'claude-haiku-5-5', reasoningEffort: 'medium' })
 })
-it('spec Scenario "工具窗口外创建的插件子会话不被接管"', async () => {
+it('spec Scenario "Plugin children created outside the tool window remain unmanaged"', async () => {
  const h = await harness()
  await h.invoke()
  const judged = h.jev.bodies.length
@@ -547,7 +547,7 @@ it('spec Scenario "工具窗口外创建的插件子会话不被接管"', async 
  expect(h.jev.bodies).toHaveLength(judged)
  expect(h.calls.filter(c => c.sessionId === late.id).at(-1)).toMatchObject({ provider: 'claude', model: 'claude-opus-5-5' })
 })
-it('spec Scenario "同窗口同父插件旁支一并受管且如实说明"', async () => {
+it('spec Scenario "Plugin siblings created within the same tool window are managed and disclosed"', async () => {
  // Fixture limit: the offline harness has no subagents service, so the sibling uses agents.create inside the window.
  const h = await harness(); const { ctrl, spawn } = spawner(h)
  let sibling: H['parent'] | undefined
@@ -557,7 +557,7 @@ it('spec Scenario "同窗口同父插件旁支一并受管且如实说明"', asy
  expect(h.store.get(sibling!.id)?.status).toBe('applied')
  expect((await h.callEndpoint('childRouting', { sessionId: sibling!.id })).scopeNote).toBe(SCOPE_NOTE)
 })
-it('spec Scenario "provider 与父配置在绑定边界同步采样"', async () => {
+it('spec Scenario "Provider and parent settings are sampled together at binding"', async () => {
  const h = await harness(); const { ctrl, spawn } = spawner(h)
  h.pickMain('claude', 'claude-sonnet-5-5')
  await h.run(h.parent, 'Switch the main model before delegating')
@@ -571,7 +571,7 @@ it('spec Scenario "provider 与父配置在绑定边界同步采样"', async () 
  expect(explicit.parentSelection).toMatchObject({ provider: 'claude', model: 'claude-sonnet-5-5' })
  expect(explicit.explicit.provider).toBe('X')
 })
-it('spec Scenario "受管子会话完整性问题仍拒绝"', async () => {
+it('spec Scenario "Managed children with integrity problems are still rejected"', async () => {
  const h = await harness()
  await h.invoke()
  const child = h.handles[1]!.agent
@@ -581,20 +581,20 @@ it('spec Scenario "受管子会话完整性问题仍拒绝"', async () => {
  await h.run(child, 'Restore with a mismatched parent')
  expect(h.calls).toHaveLength(requests); expect(h.jev.bodies).toHaveLength(judged)
 })
-it('spec Scenario "不改写的记录在重启后不重判"', async () => {
+it('spec Scenario "Records with no rewrite are not judged again after restart"', async () => {
  const h = await harness()
  await h.restart()
  const children = await Promise.all([
   legacyChild(h, 'u-1', legacyRecord('u-1', h.parent.id, { status: 'unsupported', reason: 'no-usable-route', route: undefined, actual: undefined })),
-  legacyChild(h, 'n-1', legacyRecord('n-1', h.parent.id, { status: 'needs-context', reason: '请补充', route: undefined, actual: undefined })),
-  legacyChild(h, 'f-1', legacyRecord('f-1', h.parent.id, { status: 'failed', reason: 'Jev 失败', route: undefined, actual: undefined })),
+  legacyChild(h, 'n-1', legacyRecord('n-1', h.parent.id, { status: 'needs-context', reason: 'Please provide more detail', route: undefined, actual: undefined })),
+  legacyChild(h, 'f-1', legacyRecord('f-1', h.parent.id, { status: 'failed', reason: 'Jev failed', route: undefined, actual: undefined })),
  ])
  const judged = h.jev.bodies.length, requests = h.calls.length
  for (const child of children) await h.run(child, 'restore')
  expect(h.calls).toHaveLength(requests + 3); expect(h.jev.bodies).toHaveLength(judged)
  expect(h.calls.slice(-3).every(c => c.model === 'claude-opus-5-5')).toBe(true)
 })
-it('spec Scenario "冷恢复时初始决策中断"', async () => {
+it('spec Scenario "Initial decision interrupted before cold recovery"', async () => {
  const h = await harness()
  await h.restart()
  const child = await legacyChild(h, 'r-1', legacyRecord('r-1', h.parent.id, { status: 'recommended', route: undefined, actual: undefined }))
@@ -603,7 +603,7 @@ it('spec Scenario "冷恢复时初始决策中断"', async () => {
  expect(h.calls).toHaveLength(requests + 1); expect(h.jev.bodies).toHaveLength(judged)
  expect(h.store.get(child.id)).toMatchObject({ status: 'unsupported', reason: 'interrupted' })
 })
-it('spec Scenario "已有 route 实时门禁失败仍拒绝"', async () => {
+it('spec Scenario "Existing routes are rejected if live validation fails"', async () => {
  const h = await harness()
  await h.invoke()
  const child = h.handles[1]!.agent
@@ -622,7 +622,7 @@ it('spec Scenario "已有 route 实时门禁失败仍拒绝"', async () => {
   undo()
  }
 })
-it.each([[false, 200], [false, 402], [true, 200], [true, 402]] as const)('spec Scenario "子判断期间模式往返使旧结果失效" (roundtrip=%s, Jev %s)', async (roundtrip, status) => {
+it.each([[false, 200], [false, 402], [true, 200], [true, 402]] as const)('spec Scenario "A mode round trip during child judgment invalidates the result" (roundtrip=%s, Jev %s)', async (roundtrip, status) => {
  const h = await harness()
  h.jev.set((_req, res) => { void (async () => {
   await h.callEndpoint('setMode', { sessionId: h.parent.id, mode: 'MANUAL' })
@@ -642,7 +642,7 @@ it.each([[false, 200], [false, 402], [true, 200], [true, 402]] as const)('spec S
   expect(state.childNotice?.reason).toBe('mode-changed'); expect(state.decision).toBeUndefined()
  }
 })
-it('spec Scenario "未路由告警可见且只提示一次"', async () => {
+it('spec Scenario "The unrouted warning is visible and appears once"', async () => {
  const h = await harness(); h.jev.set(json(402, {}))
  await h.invoke()
  const child = h.handles[1]!.agent
@@ -652,7 +652,7 @@ it('spec Scenario "未路由告警可见且只提示一次"', async () => {
  expect(first.decisionToast).toBe(true)
  expect(h.warnings.mock.calls.filter(([m]) => String(m).includes(child.id))).toHaveLength(1)
 })
-it('spec Scenario "告警不泄漏任务文本且开关关闭不弹出"', async () => {
+it('spec Scenario "Warnings hide task text and do not pop up when disabled"', async () => {
  const h = await harness(); const { spawn } = spawner(h)
  h.configure({ decisionToast: false }); h.jev.set(json(402, {}))
  await spawn(h.parent, { prompt: 'SECRET_TASK_TEXT do the private thing' })
@@ -662,7 +662,7 @@ it('spec Scenario "告警不泄漏任务文本且开关关闭不弹出"', async 
  expect(JSON.stringify(state)).not.toContain('SECRET_TASK_TEXT')
  expect(JSON.stringify(h.warnings.mock.calls)).not.toContain('SECRET_TASK_TEXT')
 })
-it('spec Scenario "带旧 AUTO 状态的子会话不被改写"', async () => {
+it('spec Scenario "Children with old AUTO state are not rewritten"', async () => {
  const h = await harness()
  await h.invoke()
  const child = h.handles[1]!.agent
@@ -672,14 +672,14 @@ it('spec Scenario "带旧 AUTO 状态的子会话不被改写"', async () => {
  expect(await h.callEndpoint('state', { type: 'client-request', rpcId: 'r1', method: 'auto-model-routing.state', payload: { sessionId: child.id } })).toEqual({ type: 'server-response', rpcId: 'r1', result: { ok: true, value: { applicable: false } } })
  expect(JSON.stringify(h.modes.get(child.id))).toBe(before)
 })
-it('spec Scenario "子失败不换模且可见"', async () => {
+it('spec Scenario "Child routing failures are visible and do not switch models"', async () => {
  const h = await harness(); h.jev.set(json(402, {}))
  await h.invoke()
  const child = h.handles[1]!.agent
  expect(h.calls.filter(c => c.sessionId === child.id).every(c => c.model === 'claude-opus-5-5')).toBe(true)
  expect(await h.callEndpoint('childRouting', { sessionId: child.id })).toMatchObject({ status: 'unsupported', reason: 'jev-insufficient-credits', scopeNote: SCOPE_NOTE })
 })
-it('spec Scenario "GPT 主子保持同 transport 及支持的 effort"', async () => {
+it('spec Scenario "GPT parents and children keep the same transport and supported effort"', async () => {
  const h = await harness('dsh-magpie-connect', false, 'codex')
  await h.invoke()
  const child = h.handles[1]!.agent
@@ -688,7 +688,7 @@ it('spec Scenario "GPT 主子保持同 transport 及支持的 effort"', async ()
  await h.run(child, 'Restore GPT child')
  expect(h.calls.at(-1)).toMatchObject({ provider: 'dsh-magpie-connect', model: 'codex/gpt-6-luna', reasoningEffort: h.store.get(child.id)!.route!.reasoningEffort })
 })
-it('spec Scenario "子任务判断失败不停用根会话"', async () => {
+it('spec Scenario "A subtask judgment failure does not disable AUTO for the root"', async () => {
  const h = await harness(); h.jev.set(json(429, {}))
  await h.invoke()
  expect(h.store.get(h.handles[1]!.agent.id)?.status).toBe('unsupported')
@@ -698,7 +698,7 @@ it('spec Scenario "子任务判断失败不停用根会话"', async () => {
  await h.run(h.parent, 'The root still judges its own next turn')
  expect(h.jev.bodies.length).toBe(judged + 1)
 })
-it('spec Scenario "未登记 provider 的 GPT 主会话可以派子任务"', async () => {
+it('spec Scenario "GPT main sessions can delegate with an unregistered provider"', async () => {
  const h = await harness(false, false, 'codex', false, { provider: 'traex', model: 'GPT-5.6-Sol', efforts: ['low','medium','high','xhigh'], defaultEffort: 'medium' })
  const { spawn } = spawner(h)
  expect((await spawn()).isError).not.toBe(true)
@@ -727,7 +727,7 @@ function watchChildSelect(h: RealHarness) {
  h.ctx.on('agent/created', ({ agent }) => { inCreated.delete(agent.id); return undefined })
  return calls
 }
-it('spec Scenario "子路由在 step 1 生效且不写默认"', async () => {
+it('spec Scenario "Child routing applies on step 1 without writing defaults"', async () => {
  const h = await realHarness()
  const selectCalls = watchChildSelect(h)
  const step1: unknown[] = []
@@ -750,7 +750,7 @@ it('spec Scenario "子路由在 step 1 生效且不写默认"', async () => {
  expect(turnEnd(child)).toEqual({ kind: 'completed' })
  expect(h.jev.bodies).toHaveLength(1)
 })
-it('spec Scenario "官方参数校验失败的创建不请求 Jev"', async () => {
+it('spec Scenario "Creation rejected by official parameter validation does not call Jev"', async () => {
  const h = await realHarness()
  const created: string[] = []
  h.ctx.on('agent/created', ({ agent }) => { if (agent.session.header.origin === 'subagent') created.push(agent.id); return undefined })
@@ -762,7 +762,7 @@ it('spec Scenario "官方参数校验失败的创建不请求 Jev"', async () =>
  const dir = join(h.home, 'state/auto-model-routing/policy-v2')
  expect(existsSync(dir) ? readdirSync(dir) : []).toEqual([])
 })
-it('spec Scenario "created 等待 Jev 期间取消创建"', async () => {
+it('spec Scenario "Cancel creation while the created handler waits for Jev"', async () => {
  const h = await realHarness()
  const selectCalls = watchChildSelect(h)
  const unhandled: unknown[] = []; const onUnhandled = (reason: unknown) => unhandled.push(reason); process.on('unhandledRejection', onUnhandled)
@@ -816,7 +816,7 @@ async function interruptedChild(h: RealHarness) {
  return { childId, resumeSelects, resume }
 }
 const interruptedRecord = (h: RealHarness, childId: string, extra: Record<string, unknown> = {}) => ({ childId, parentId: h.parent.id, rootId: h.parent.id, path: 'ordinary', family: 'claude', explicit: { provider: 'claude' }, parentSelection: { provider: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'medium' }, status: 'recommended', route: { provider: 'claude', model: 'claude-haiku-5-5', reasoningEffort: 'low' }, ...extra })
-it('spec Scenario "从 0.2.1 中断状态恢复的子会话补写 route"', async () => {
+it('spec Scenario "A child restored from interrupted 0.2.1 state writes its missing route"', async () => {
  const h = await realHarness()
  const { childId, resumeSelects, resume } = await interruptedChild(h)
  const route = { provider: 'claude', model: 'claude-haiku-5-5', reasoningEffort: 'low' }
@@ -847,9 +847,9 @@ it.each(['missing', 'corrupt', 'parent', 'failed'] as const)('resume keeps faili
  expect(h.jev.bodies).toHaveLength(judged)
  const end = turnEnd(h.liveChild()!)
  expect(end?.kind).toBe('error')
- expect(end?.error?.message).toContain({ missing: '决策记录缺失', corrupt: '子任务决策无法恢复', parent: '决策身份不匹配', failed: '实际应用失败' }[kind])
+ expect(end?.error?.message).toContain({ missing: 'decision record is missing', corrupt: 'Cannot restore the subtask decision', parent: 'Decision identity mismatch', failed: 'Failed to apply the route' }[kind])
 })
-it.each([['cap lowered', (h: RealHarness) => h.configure({ effortCap: 'medium' })], ['catalog unavailable', (h: RealHarness) => { h.ctx.llm.listModels = async () => { throw new Error('offline') } }]] as const)('spec Scenario "同一步重试前门禁失效" (%s)', async (name, revoke) => {
+it.each([['cap lowered', (h: RealHarness) => h.configure({ effortCap: 'medium' })], ['catalog unavailable', (h: RealHarness) => { h.ctx.llm.listModels = async () => { throw new Error('offline') } }]] as const)('spec Scenario "Live validation fails before a retry of the same step" (%s)', async (name, revoke) => {
  let revoked = false, failedOnce = false
  const h = await realHarness(request => {
   // The first child attempt fails with a retryable provider error; the retry must then be refused by the live gate.
@@ -877,7 +877,7 @@ it.each([['cap lowered', (h: RealHarness) => h.configure({ effortCap: 'medium' }
  expect(h.calls.filter(c => c.sessionId === childId)).toHaveLength(1)
  const end = turnEnd(child)
  expect(end?.kind, name).toBe('error')
- expect(end?.error?.message ?? '').toMatch(/effort|catalog|目录|允许|offline|unavailable|不可用|cap/i)
+ expect(end?.error?.message ?? '').toMatch(/effort|catalog|offline|unavailable|cap/i)
  // Route, record and the child's selection are untouched.
  expect(h.store.get(childId)!.route).toEqual(record.route)
  expect(child.model.current()).toMatchObject(record.route!)

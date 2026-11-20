@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1+mod.3 — 2026-11-20 (fork)
+
+- English only: the Chinese UI dictionary is removed (English is registered for both host locale ids and is the unbound fallback); preset metadata, host error messages, hints, tool text, bundled skills, docs, tests and fixtures are in English. Chinese-only READMEs, the Chinese architecture diagram and the Chinese screenshots are removed. The redaction rule still matches Chinese secret labels (written as Unicode escapes). No routing behavior change.
+
 ## 0.7.1+mod.2 — 2026-11-20 (fork)
 
 - The OpenRouter decision-model menu is filled live by the Host (`auto-model-routing.decisionModels`) from OpenRouter's public model API: only `decisions` models on `/api/alpha/decisions` whose catalog prices are all zero, not expired, and with at least one available (status 0) zero-priced endpoint. Loaded on settings mount, re-fetched (cache bypass) whenever the menu opens; 30 s cache otherwise. A saved model missing from the list stays selectable and is marked; failures show an inline disabled row.
@@ -38,34 +42,34 @@
 
 ## 0.6.5 — 2026-11-03
 
-- Jev 判断等待上限默认值改为 8000 ms（原 5000 ms）；允许范围仍为 1000–8000 ms，已显式保存的值保持不变。2026-10-30 实测约 1/20 的判断服务端耗时超过 5 s，而一次超时就会让整个会话停用 AUTO。
+- The default Jev decision deadline increased from 5000 ms to 8000 ms. The allowed range remains 1000–8000 ms, and explicitly saved values are unchanged. Measurements on 2026-10-30 showed that about 1 in 20 decisions took more than 5 s on the server; a single timeout disables AUTO for the whole session.
 
 ## 0.6.4 — 2026-11-03
 
-- 主仓目录与 `dsh.yaml` 条目 id 统一为 `dsh-auto-model-routing`，与 npm 包名、镜像仓库一致。
-- 包代码、插件 id、设置路径（`$DSH_HOME/plugins/dsh-auto-model-routing/`）、状态目录（`$DSH_HOME/state/auto-model-routing/`）与 RPC 命名不变；仅结构/文档变更，无行为变更。
+- The main repository directory and the entry ID in `dsh.yaml` are now both `dsh-auto-model-routing`, matching the npm package and mirror repository.
+- Package code, plugin ID, settings path (`$DSH_HOME/plugins/dsh-auto-model-routing/`), state directory (`$DSH_HOME/state/auto-model-routing/`), and RPC names are unchanged. This is a structure and documentation change only.
 
 ## 0.6.3 — 2026-11-02
 
-- README 中英首屏改为 markdown 图片写法，商店详情页可直接渲染。
-- 仅文档调整，无代码/行为变更。
+- The lead images in the English and Chinese READMEs now use Markdown image syntax so the store detail page can render them directly.
+- Documentation only; no code or behavior changes.
 
 ## 0.6.2 — 2026-11-02
 
-- 修复「key 来自启动环境」提示写死 `OPENROUTER_API_KEY` 的问题：改用当前所选决策服务的凭据名（如 `AUTO_DECISION_CUSTOM_API_KEY`），与设置页显示的「凭据引用」一致。
-- 仅提示文案，无行为变更。
+- Fixed the “from the launch environment” hint hardcoding `OPENROUTER_API_KEY`. It now uses the selected decision service’s credential name (such as `AUTO_DECISION_CUSTOM_API_KEY`), matching “Credential reference” in settings.
+- Hint text only; no behavior changes.
 
 ## 0.6.1 — 2026-11-02
 
-- 补齐 0.6.0 漏掉的界面文案：内置决策服务名称（OpenRouter / TypeSafe official / Concentrate / Custom System One）与失败分类提示（未配置 key、余额不足、限流等）改走 `t()`，英文界面下不再出现中文。
-- 仅客户端文案与字典键变化，无行为变更；未绑定翻译器时仍回退中文。
+- Completed UI translation missed in 0.6.0: built-in decision service names (OpenRouter / TypeSafe official / Concentrate / Custom System One) and failure hints (“No API key configured for the selected decision service”, “Out of credits, please top up”, “The request was rate limited”, etc.) now use `t()` and no longer display Chinese in the English UI.
+- Only client copy and dictionary keys changed; behavior is unchanged. Chinese is still the fallback when no translator is bound.
 
 ## 0.6.0 — 2026-11-02
 
-- 客户端界面支持中英双语：新增 `src/client/locales.ts`（`settings.autoModelRouting` 的 zh/en 字典 + 模块级翻译器），composer 的 AUTO 切换、状态面板、决策提示、回复反馈菜单与设置页文案全部改走 `t()`，随 DSH 界面语言渲染。
-- client 入口注册字典并绑定 `ctx.locale`；`dsh.client.inject` 与 peer 依赖补 `@deepseek-ai/dsh-client-locale`。
-- 未绑定翻译器时回退中文参考集（单测与无 locale 服务的宿主行为不变）；新增字典键集合一致性与中英切换测试。
-- 设置导航行的图标适配器按当前语言的标签匹配，不再硬编码中文。
+- Added English and Chinese client UI support: `src/client/locales.ts` contains the zh/en dictionaries for `settings.autoModelRouting` and a module-level translator. The composer AUTO toggle, status panel, decision hints, reply feedback menu, and settings now all use `t()` and follow the DSH UI language.
+- The client entry registers the dictionaries and binds `ctx.locale`; `dsh.client.inject` and peer dependencies now include `@deepseek-ai/dsh-client-locale`.
+- When no translator is bound, the Chinese reference dictionary remains the fallback (unchanged for unit tests and hosts without a locale service). Added tests for dictionary key parity and English/Chinese switching.
+- The settings navigation icon adapter matches the label in the active language instead of hardcoding Chinese.
 
 ## 0.5.4
 

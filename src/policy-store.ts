@@ -21,10 +21,10 @@ return z.object({
   route: route.optional(), actual: route.optional(), reason: z.string().max(240).optional(),
 }).strict().superRefine((r, ctx) => {
   const bad = (message: string) => ctx.addIssue({ code: 'custom', message })
-  if (r.status === 'recommended' && r.actual) bad('recommended 不能含 actual')
-  if (r.status === 'applied' && (!r.route || !r.actual)) bad('applied 需要 route 与 actual')
-  if (r.status === 'unsupported' && (r.route || r.actual)) bad('unsupported 不能含 route')
-  if (r.status === 'needs-context' && r.route) bad('needs-context 不能含 route')
+  if (r.status === 'recommended' && r.actual) bad('recommended must not include actual')
+  if (r.status === 'applied' && (!r.route || !r.actual)) bad('applied requires route and actual')
+  if (r.status === 'unsupported' && (r.route || r.actual)) bad('unsupported must not include route')
+  if (r.status === 'needs-context' && r.route) bad('needs-context must not include route')
 })
 }
 export type ChildDecision = z.infer<ReturnType<typeof schemaFor>>
@@ -40,7 +40,7 @@ export class PolicyStore {
     writeFileSync(`${this.path(id)}.bound`, id, { flag: 'wx', mode: 0o600 })
   }
   wasBound(id: string): boolean {
-    try { if (readFileSync(`${this.path(id)}.bound`, 'utf8') !== id) throw new Error('绑定标记损坏'); return true }
+    try { if (readFileSync(`${this.path(id)}.bound`, 'utf8') !== id) throw new Error('Binding marker is corrupt'); return true }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error }
   }
   get(id: string): ChildDecision | undefined {
@@ -52,17 +52,17 @@ export class PolicyStore {
       const record = this.schema.parse(rest)
       if (record.childId !== id) throw new Error('child identity mismatch')
       return record
-    } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined; throw new Error('子任务决策无法恢复；暂停该子会话') }
+    } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined; throw new Error('Cannot restore the subtask decision; pause the child session') }
   }
   /** Initial binding of a new managed child: the parent snapshot is mandatory, then the marker. */
   create(value: ChildDecision): void {
-    if (!value.parentSelection) throw new Error('新建初始记录缺少 parentSelection')
+    if (!value.parentSelection) throw new Error('New initial record is missing parentSelection')
     this.set(value)
     this.bind(value.childId)
   }
   set(value: ChildDecision): void {
     const checked = this.schema.parse(value)
-    if (checked.status === 'unsupported' && !closedReason(checked.reason)) throw new Error(`未知的未路由原因：${checked.reason ?? ''}`)
+    if (checked.status === 'unsupported' && !closedReason(checked.reason)) throw new Error(`Unknown reason for not routing: ${checked.reason ?? ''}`)
     mkdirSync(this.directory, { recursive: true, mode: 0o700 }); chmodSync(this.directory, 0o700)
     const target = this.path(value.childId), temp = `${target}.${randomUUID()}.tmp`
     writeFileSync(temp, JSON.stringify(checked), { flag: 'wx', mode: 0o600 })

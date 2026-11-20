@@ -1,21 +1,21 @@
-# Jev policy-v2 验证（2026-10-24）
+# Jev policy-v2 validation (2026-10-24)
 
-> 历史记录：命名、路径与行为以记录时的 0.4.x 版本为准；0.5.0 起只有一套 AUTO 策略，规则文件为 `src/rubric.json`，家族策略见 `src/strategies/`。
+> Historical record: Names, paths, and behavior reflect the 0.4.x version at the time. From 0.5.0 onward, AUTO has one strategy, with rules in `src/rubric.json` and family strategies in `src/strategies/`.
 
-## 结论
+## Conclusion
 
-官方接口和真实 `typesafe/jev-1.13` 均支持一次请求中独立返回 capability 与 depth。10 次合成任务请求全部返回合法的双 Choice；预先定义的 development / holdout 各 5 例均符合预期，不调整 rubric、不重试。**这只证明接口与小样本分类，不证明实际子模型质量、成本收益或默认推广条件。**
+The official interface and the live `typesafe/jev-1.13` model both support returning independent capability and depth answers in one request. All 10 synthetic requests returned two valid Choice answers. The 5 predefined cases in each of the development and holdout splits matched expectations, without rubric changes or retries. **This validates only the interface and small-sample classification, not actual child model quality, cost benefits, or readiness to make the strategy the default.**
 
-- [官方教程](https://openrouter.ai/docs/guides/community/jev-tutorial.md)：多个问题并行作答，不能读取彼此答案。
-- [官方 API schema](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request.md)：questions 为命名问题映射，answers 同键返回。
-- [价格入口](https://openrouter.ai/api/v1/models/typesafe/jev-1.13/endpoints)：验证时 input US$0.042 / million tokens，output 0；请求显式 max_price + 禁止 fallback。
-- 模型仍固定 `typesafe/jev-1.13`；文档虽然已有 1.14，本次不擅自升级。
+- [Official tutorial](https://openrouter.ai/docs/guides/community/jev-tutorial.md): Questions are answered in parallel and cannot see each other’s answers.
+- [Official API schema](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request.md): `questions` is a map of named questions; `answers` uses the same keys.
+- [Pricing endpoint](https://openrouter.ai/api/v1/models/typesafe/jev-1.13/endpoints): At validation time, input cost US$0.042 per million tokens and output cost 0; requests explicitly set `max_price` and disallowed fallback.
+- The model remains pinned to `typesafe/jev-1.13`. The docs already cover 1.14, but this test did not upgrade it.
 
-## 实测
+## Live measurements
 
-用户授权上限：20 次、输入每次 ≤8192 bytes、US$0.10。实际 10 次，总 input 8194 tokens，**US$0.000344148**；单次 493–1036 ms。真实 snapshot 为 `typesafe/jev-1.13-20260917`。
+The user authorized up to 20 requests, ≤8192 input bytes each, and US$0.10. The actual run made 10 requests with 8194 total input tokens and cost **US$0.000344148**. Each took 493–1036 ms. The live snapshot was `typesafe/jev-1.13-20260917`.
 
-| 样例 | split | capability | depth |
+| Case | split | capability | depth |
 |---|---|---|---|
 | dev-bulk | development | bounded | baseline |
 | dev-risk | development | bounded | baseline |
@@ -28,12 +28,12 @@
 | hold-constraints | holdout | frontier | higher |
 | hold-unknown | holdout | insufficient_context | baseline |
 
-[测试输入及独立预期](../eval/cases.json)、[问题定义](../src/presets/reasoning-depth/rubric.json)、[有预算保护的实测脚本](../eval/live.mjs)（当时文件名分别带 `policy-v2-` 前缀）。depth 从同一任务证据独立判断相对适配模型的推荐投入，不引用另一个尚未返回的 capability 答案。两者都指定时不判；只指定一个维度时仅询问另一个。
+[Test inputs and independent expectations](../eval/cases.json), [question definitions](../src/presets/reasoning-depth/rubric.json), and [budget-guarded live test script](../eval/live.mjs) (their names then carried the `policy-v2-` prefix). Depth is judged independently from the same task evidence, relative to the recommended effort of a suitable model, without consulting the capability answer that has not yet returned. If both dimensions are specified, neither is judged; if only one is specified, only the other is asked.
 
-实测脚本先保留每次费用预算再请求，失败也计一次；预留每次 65536 input tokens 远高于合成输入。未知 usage.cost 停止，不记零。尚有 10 次授权余量，不默认消耗，也不因生成一个新结果文件就获得新预算。跨多次运行的全局预算需由执行者核对，脚本不是账户级额度控制。
+The live test script reserves budget before each request and counts failures as attempts. It reserves 65536 input tokens per request, far more than the synthetic inputs. If `usage.cost` is unknown, it stops rather than recording zero. The 10 remaining authorized requests are not spent by default; a new results file does not create a new budget. The operator must reconcile the budget across runs; the script is not an account-level spending limit.
 
-## 实施映射起点
+## Initial implementation mapping
 
-版本 `capability-slots-1`：Claude bounded/analytical/frontier = Haiku/Sonnet/Opus 5.5；Codex = Luna/Sol/Sol（目前目录只有两种已选能力模型，不伪造第三种）。推荐 effort 复用当前 [官方起点表](../src/effort.ts#L7-L16)，Claude 三模型 medium、Luna high、Sol medium。depth 只按支持序列移动一档，automatic 不使用 max；显式值仍校验目录、允许列表与上限，失效报错不替换。
+Version `capability-slots-1`: Claude bounded/analytical/frontier = Haiku/Sonnet/Opus 5.5; Codex = Luna/Sol/Sol (only two capability models are selected in the current catalog; no third model is invented). Recommended effort uses the current [official starting points](../src/effort.ts#L7-L16): medium for all three Claude models, high for Luna, and medium for Sol. Depth moves at most one step in the supported sequence; automatic routing never uses max. Explicit values still pass catalog, allowlist, and cap checks; invalid values cause an error, not substitution.
 
-这份映射是初始试验基线，不声称已经独立证明各子模型是最优能力槽。未进行实际子模型调用或端到端任务保留集对照；其成本、质量与返工收益均未知。
+This mapping is an initial experimental baseline; it does not independently establish that the child models are optimal for their slots. No actual child model calls or end-to-end holdout comparisons were run. Effects on cost, quality, and rework remain unknown.

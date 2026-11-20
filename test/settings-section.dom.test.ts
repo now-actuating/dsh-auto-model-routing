@@ -19,7 +19,7 @@ it('ordinary settings save a sparse patch and never select a session model', asy
   await act(async () => root.render(h(RoutingSettings, { rpc, ui })))
   expect(host.querySelectorAll('[data-tier]')).toHaveLength(0)
   expect(host.querySelector('[role=tablist]')).toBeNull()
-  await click('AUTO'); await click('保存')
+  await click('AUTO'); await click('Save')
   expect(calls.find(c => c.endpoint.endsWith('saveSettings'))?.payload).toEqual({ defaultMode: 'AUTO' })
   expect(calls.every(c => /^auto-model-routing\.(settings|saveSettings|setKey|decisionModels)$/.test(c.endpoint))).toBe(true)
 })
@@ -27,62 +27,62 @@ it('connection button shows pending and local success or failure feedback',async
  let finish:((value:any)=>void)|undefined
  const rpc={call:async(_:string,endpoint:string)=>endpoint.endsWith('testDecision')?new Promise<any>(resolve=>{finish=resolve}):({ok:true,value:view()})}
  await act(async()=>root.render(h(RoutingSettings,{rpc,ui})))
- await click('测试连接')
- expect(host.querySelector('.amr-test-button')?.textContent).toBe('测试中…')
+ await click('Test connection')
+ expect(host.querySelector('.amr-test-button')?.textContent).toBe('Testing…')
  expect((host.querySelector('.amr-test-button') as HTMLButtonElement).disabled).toBe(true)
  await act(async()=>finish!({ok:true,value:{kind:'ok',ms:123}}))
- expect(host.querySelector('.amr-test-row')?.textContent).toContain('连接成功 · 123 ms')
- await click('测试连接');await act(async()=>finish!({ok:true,value:{kind:'failed',category:'missing-credential'}}))
- expect(host.querySelector('.amr-test-row')?.textContent).toContain('未配置所选决策服务的 API key')
+ expect(host.querySelector('.amr-test-row')?.textContent).toContain('Connection succeeded · 123 ms')
+ await click('Test connection');await act(async()=>finish!({ok:true,value:{kind:'failed',category:'missing-credential'}}))
+ expect(host.querySelector('.amr-test-row')?.textContent).toContain('No API key configured for the selected decision service')
 })
 it('service selection clears key drafts and waits for save before key management',async()=>{
  const calls:{endpoint:string;payload:any}[]=[]
  const rpc={call:async(_:string,endpoint:string,payload:any)=>{calls.push({endpoint,payload});const data=view();if(endpoint.endsWith('saveSettings'))data.settings={...data.settings,...payload};return {ok:true,value:data}}}
  await act(async()=>root.render(h(RoutingSettings,{rpc,ui})))
  expect(host.querySelector('select')).toBeNull()
- await clickLabel('决策服务'); await click('TypeSafe 官方')
- expect(host.textContent).toContain('不会沿用原服务的 key')
+ await clickLabel('Decision service'); await click('TypeSafe official')
+ expect(host.textContent).toContain('key is not reused')
  expect(host.querySelector('input[type="password"]')?.hasAttribute('disabled')).toBe(true)
- await click('保存')
+ await click('Save')
  expect(calls.find(c=>c.endpoint.endsWith('saveSettings'))?.payload).toEqual({decisionService:{provider:'typesafe'}})
  expect(calls.some(c=>c.endpoint.endsWith('setKey'))).toBe(false)
 })
 it('preset model menu selects version while custom service keeps model input',async()=>{
  await act(async()=>root.render(h(RoutingSettings,{rpc:{call:async()=>({ok:true,value:view()})},ui})))
- expect(host.querySelector('input[aria-label="决策模型"]')).toBeNull()
- await clickLabel('决策服务');await click('TypeSafe 官方')
- await clickLabel('决策模型');await click('jev-1.14.0')
- expect(host.querySelector('button[aria-label="决策模型"]')?.textContent).toBe('jev-1.14.0')
- await clickLabel('决策服务');await click('自定义 System One')
- expect(host.querySelector('input[aria-label="决策模型"]')).not.toBeNull()
+ expect(host.querySelector('input[aria-label="Decision model"]')).toBeNull()
+ await clickLabel('Decision service');await click('TypeSafe official')
+ await clickLabel('Decision model');await click('jev-1.14.0')
+ expect(host.querySelector('button[aria-label="Decision model"]')?.textContent).toBe('jev-1.14.0')
+ await clickLabel('Decision service');await click('Custom System One')
+ expect(host.querySelector('input[aria-label="Decision model"]')).not.toBeNull()
 })
-it('spec Scenario "旧映射配置不影响路由并在保存时移除" (settings page notice)', async () => {
+it('spec Scenario "Old mapping settings do not affect routing and are removed on save" (settings page notice)', async () => {
   const withDeprecated={...view(),deprecated:['childRoutes','mainEfforts','policy']}
   await act(async()=>root.render(h(RoutingSettings,{rpc:{call:async()=>({ok:true,value:withDeprecated})},ui})))
-  expect(host.querySelector('[role=status][data-deprecated]')?.textContent).toMatch(/不再生效/)
-  expect(host.textContent).toMatch(/下次保存.*移除/)
+  expect(host.querySelector('[role=status][data-deprecated]')?.textContent).toMatch(/no longer apply/)
+  expect(host.textContent).toMatch(/removed on the next save/)
   expect(host.querySelectorAll('[data-tier]')).toHaveLength(0)
   expect(host.querySelector('[role=tablist]')).toBeNull()
   act(()=>root.unmount()); root=createRoot(host)
   await act(async()=>root.render(h(RoutingSettings,{rpc:{call:async()=>({ok:true,value:{...view(),deprecated:[]}})},ui})))
   expect(host.querySelector('[data-deprecated]')).toBeNull()
 })
-it('spec Scenario "选择并保存判档预设"',async()=>{
+it('spec Scenario "Select and save a judgement preset"',async()=>{
   const calls:{endpoint:string;payload:any}[]=[]
   const data={...view(),settings:{...view().settings,decisionToast:false}}
   await act(async()=>root.render(h(RoutingSettings,{rpc:{call:async(_:string,endpoint:string,payload:any)=>{calls.push({endpoint,payload});return {ok:true,value:data}}},ui})))
   const eav=resolvePreset('effort-as-verification'),rd=resolvePreset('reasoning-depth')
-  expect(host.querySelector('[aria-label="判档预设"]')?.textContent).toContain(rd.title.zh)
-  await clickLabel('判档预设')
+  expect(host.querySelector('[aria-label="Judgement preset"]')?.textContent).toContain(rd.title)
+  await clickLabel('Judgement preset')
   const items=Array.from(document.querySelectorAll('[role=menu] button')).map(b=>b.textContent)
-  expect(items).toEqual([`${rd.title.zh} · 默认`,eav.title.zh])
-  await click(eav.title.zh)
-  expect(host.querySelector('[aria-label="判档预设"]')?.textContent).toContain(eav.title.zh)
-  expect(host.textContent).toContain(eav.summary.zh)
-  await click('保存')
+  expect(items).toEqual([`${rd.title} · default`,eav.title])
+  await click(eav.title)
+  expect(host.querySelector('[aria-label="Judgement preset"]')?.textContent).toContain(eav.title)
+  expect(host.textContent).toContain(eav.summary)
+  await click('Save')
   expect(calls.find(c=>c.endpoint.endsWith('saveSettings'))?.payload).toEqual({preset:'effort-as-verification'})
 })
-it('spec Scenario "策略说明来自规则文件与注册表"',async()=>{
+it('spec Scenario "The policy description comes from rubric files and the registry"',async()=>{
   const calls:string[]=[]
   const data={...view(),settings:{...view().settings,preset:'effort-as-verification'}}
   const eav=resolvePreset('effort-as-verification')
@@ -90,9 +90,9 @@ it('spec Scenario "策略说明来自规则文件与注册表"',async()=>{
   await act(async()=>root.render(h(RoutingSettings,{rpc:{call:async(_,endpoint)=>{calls.push(endpoint);return {ok:true,value:data}}},ui})))
   const details=host.querySelector('details')!
   expect(details.open).toBe(false)
-  expect(details.querySelector('summary')?.textContent).toBe('查看决策策略')
-  expect(details.textContent).toContain(eav.title.zh)
-  expect(details.textContent).toContain(eav.evidence.zh)
+  expect(details.querySelector('summary')?.textContent).toBe('View the decision policy')
+  expect(details.textContent).toContain(eav.title)
+  expect(details.textContent).toContain(eav.evidence)
   const link=details.querySelector(`a[href="${eav.sources[0]!.url}"]`) as HTMLAnchorElement
   expect(link).not.toBeNull()
   expect(link.target).toBe('_blank')
@@ -108,17 +108,17 @@ it('spec Scenario "策略说明来自规则文件与注册表"',async()=>{
   details.open=true;details.dispatchEvent(new Event('toggle'))
   expect(details.open).toBe(true)
   expect(calls).toEqual(['auto-model-routing.settings','auto-model-routing.decisionModels'])
-  expect((Array.from(host.querySelectorAll('button')).find(b=>b.textContent==='保存') as HTMLButtonElement).disabled).toBe(true)
+  expect((Array.from(host.querySelectorAll('button')).find(b=>b.textContent==='Save') as HTMLButtonElement).disabled).toBe(true)
 })
-it('spec Scenario "独立保存结果与不泄漏"', async () => {
+it('spec Scenario "Save results are independent and do not expose secrets"', async () => {
   const rpc = { call: async (_: string, endpoint: string) => endpoint.endsWith('saveSettings') ? { ok: false, error: { message: 'invalid' } } : { ok: true, value: view() } }
   await act(async () => root.render(h(RoutingSettings, { rpc, ui })))
   const input = host.querySelector('input[type=password]') as HTMLInputElement
   await act(async () => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'example-test-value'); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })) })
-  await click('AUTO'); await click('保存')
+  await click('AUTO'); await click('Save')
   expect(input.value).toBe('')
-  expect(host.textContent).toContain('API key 已保存')
-  expect(host.textContent).toContain('设置未保存')
+  expect(host.textContent).toContain('API key saved')
+  expect(host.textContent).toContain('Settings were not saved')
   expect(Array.from(host.querySelectorAll('[aria-pressed=true]')).some(el => el.textContent === 'AUTO')).toBe(true)
 })
 it('unavailable child service and readonly environment key still allow unrelated settings save', async () => {
@@ -127,8 +127,8 @@ it('unavailable child service and readonly environment key still allow unrelated
   const rpc = { call: async (_: string, endpoint: string) => { calls.push(endpoint); return { ok: true, value: data } } }
   await act(async () => root.render(h(RoutingSettings, { rpc, ui })))
   expect((host.querySelector('input[type=password]') as HTMLInputElement).disabled).toBe(true)
-  expect(host.textContent).toContain('重启')
-  await click('AUTO'); await click('保存')
+  expect(host.textContent).toContain('restart')
+  await click('AUTO'); await click('Save')
   expect(calls).toContain('auto-model-routing.saveSettings')
 })
 
@@ -139,16 +139,16 @@ it('OpenRouter model menu is filled from the Host free-model query on load and r
  await act(async()=>root.render(h(RoutingSettings,{rpc,ui})))
  expect(calls.filter(c=>c.endpoint.endsWith('decisionModels')).map(c=>c.payload)).toEqual([{refresh:false}])
  models=[...models,{id:'respan/span-01-lite:free',name:'R'}]
- await clickLabel('决策模型')
+ await clickLabel('Decision model')
  expect(calls.filter(c=>c.endpoint.endsWith('decisionModels')).map(c=>c.payload)).toEqual([{refresh:false},{refresh:true}])
  const labels=Array.from(document.querySelectorAll('[role=menu] button')).map(b=>b.textContent)
- expect(labels).toEqual(['perplexity/pplx-decider-v1.3:free','respan/span-01-lite:free','typesafe/jev-1.13 · 不在免费列表中'])
- await click('respan/span-01-lite:free'); await click('保存')
+ expect(labels).toEqual(['perplexity/pplx-decider-v1.3:free','respan/span-01-lite:free','typesafe/jev-1.13 · not in the free list'])
+ await click('respan/span-01-lite:free'); await click('Save')
  expect(calls.find(c=>c.endpoint.endsWith('saveSettings'))?.payload).toEqual({decisionService:{provider:'openrouter',model:'respan/span-01-lite:free'}})
 })
 it('OpenRouter model menu reports a failed live query without inventing models',async()=>{
  const rpc={call:async(_:string,endpoint:string)=>endpoint.endsWith('decisionModels')?{ok:true,value:{status:'failed',reason:'timeout',fetchedAt:1}}:{ok:true,value:view()}}
  await act(async()=>root.render(h(RoutingSettings,{rpc,ui})))
- await clickLabel('决策模型')
- expect(Array.from(document.querySelectorAll('[role=menu] button')).map(b=>b.textContent)).toEqual(['typesafe/jev-1.13 · 不在免费列表中','无法加载模型列表；重新打开以重试'])
+ await clickLabel('Decision model')
+ expect(Array.from(document.querySelectorAll('[role=menu] button')).map(b=>b.textContent)).toEqual(['typesafe/jev-1.13 · not in the free list','Could not load the model list; reopen to retry'])
 })

@@ -1,6 +1,5 @@
 import { t } from './locales.js'
 import { resolvePreset } from '../presets/index.js'
-import { localized } from './strategy-details.js'
 export interface Rpc { call(channel: string, endpoint: string, payload: unknown): Promise<{ok: boolean; value?: unknown; error?: {message?: string}}> }
 export async function callRouting(rpc: Rpc, sessionId: string, mode?: 'AUTO' | 'MANUAL'): Promise<unknown> {
   const result = await rpc.call('/api', `auto-model-routing.${mode ? 'setMode' : 'state'}`, { sessionId, ...(mode ? { mode } : {}) })
@@ -28,7 +27,7 @@ export function toastText(d: Decision): string[] {
   return [
     `${d.source === 'main' ? t('sourceMain') : t('sourceChild')} · ${d.status === 'applied' ? t('statusApplied') : d.status === 'failed' ? t('statusFailed') : d.status === 'unsupported' ? t('statusUnsupported') : t('statusPending')}`,
     // Only judged decisions carry a preset; an unregistered id (e.g. after a downgrade) is shown verbatim.
-    ...(d.preset ? [t('presetLine', { preset: resolvePreset(d.preset).id === d.preset ? localized(resolvePreset(d.preset).title) : d.preset })] : []),
+    ...(d.preset ? [t('presetLine', { preset: resolvePreset(d.preset).id === d.preset ? resolvePreset(d.preset).title : d.preset })] : []),
     ...(d.capability ? [t('capabilityLine', { capability: d.capability, confidence: d.capabilityConfidence === undefined ? t('notProvided') : pct(d.capabilityConfidence) })] : []),
     ...(d.capability ? [t('capabilitySpread', { list: spreadText(['bounded', 'analytical', 'frontier', 'insufficient_context'], d.capabilityProbabilities) })] : []),
     t('depthLine', { depth: d.depth, confidence: d.confidence === undefined ? t('notProvided') : pct(d.confidence) }),

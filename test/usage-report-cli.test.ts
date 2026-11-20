@@ -19,7 +19,7 @@ function snapshot(dir: string): Record<string, string> {
  return out
 }
 
-it('spec Scenario "损坏数据中的正文与路径不泄漏"', () => {
+it('spec Scenario "Corrupt data does not expose message text or paths"', () => {
  const h = makeHome()
  writeSession(h, 'session-secret-1', [...userTurn(1, 'a', 2), user(2, 'user', 'SECRET-TEXT')], { cwd: '/tmp/secret-ws' })
  bindAll(h, 'session-secret-1', 'a', 2, 1)

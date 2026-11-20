@@ -1,8 +1,4 @@
 export type PresetContext = 'execution';
-export interface Localized {
-    readonly zh: string;
-    readonly en: string;
-}
 export interface PresetSource {
     readonly title: string;
     readonly url: string;
@@ -21,9 +17,9 @@ export interface Rubric {
 export interface Preset {
     readonly id: string;
     readonly rubric: Rubric;
-    readonly title: Localized;
-    readonly summary: Localized;
-    readonly evidence: Localized;
+    readonly title: string;
+    readonly summary: string;
+    readonly evidence: string;
     readonly sources: readonly PresetSource[];
     readonly context: readonly PresetContext[];
 }

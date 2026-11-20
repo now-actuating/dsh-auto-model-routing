@@ -18,7 +18,7 @@ import { PolicyStore } from './policy-store.js'
 import { currentMainSelection, mainSupported } from './support.js'
 import { createRegistry, registry as builtin, type FamilyStrategy } from './strategies/index.js'
 
-const SCOPE_NOTE = '按官方工具 ALS 上下文、同父与 startup 绑定；不能区分同窗口插件旁支，旁支可能一并受管。'
+const SCOPE_NOTE = 'Binding uses the official tool ALS context, the same parent, and startup. Plugin-created siblings in the same window cannot be distinguished and may also be managed.'
 export const name = 'dsh-auto-model-routing'
 /** Child decision records. The historical directory name is kept on purpose: records are not migrated. */
 export const CHILD_DECISIONS_DIR = 'state/auto-model-routing/policy-v2'
@@ -120,7 +120,7 @@ export function apply(ctx: Context, config: Config = {}): void {
           const payload = enveloped ? wire.payload : body
           const response = operation === 'childRouting'
             ? (typeof (payload as { sessionId?: unknown })?.sessionId === 'string'
-              ? Response.json((record => record ? { ...record, scopeNote: SCOPE_NOTE } : { status: 'unsupported', reason: '没有已绑定的子任务决策' })(policy.status((payload as { sessionId: string }).sessionId)))
+              ? Response.json((record => record ? { ...record, scopeNote: SCOPE_NOTE } : { status: 'unsupported', reason: 'No bound subtask decision' })(policy.status((payload as { sessionId: string }).sessionId)))
               : Response.json({ error: 'invalid request' }, { status: 400 }))
             : operation === 'settings' || operation === 'saveSettings' || operation === 'setKey' || operation === 'testDecision' || operation === 'decisionModels'
             ? await hostSettings.endpoint(operation, payload)

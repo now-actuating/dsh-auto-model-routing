@@ -28,7 +28,7 @@ function rootOf(caller: SessionLike | undefined, agents: ToolDeps['agents']): Se
   return undefined
 }
 
-const MANUAL_TEXT = '主会话为 MANUAL：不判断，按官方默认委派；只传用户或 lead 指定的值（例如指定的模型），不传其它 provider/model/reasoning_effort。'
+const MANUAL_TEXT = 'The main session is in MANUAL: delegate using the official defaults without a routing judgment. Only pass values specified by the user or lead (such as a specified model); omit any other provider, model, or reasoning_effort.'
 
 /** Preview only: the same Jev judgment AUTO uses, while the root session is AUTO. Writes no state. */
 export function routeSubagentTool(jev: JevClient, deps: ToolDeps) {
@@ -61,9 +61,9 @@ export function routeSubagentTool(jev: JevClient, deps: ToolDeps) {
       },
       render: (_args, v) => [{ type: 'text', text: v.status === 'recommended'
         ? `Recommended only (not applied): ${v.provider}/${v.model}/${v.reasoning_effort}. Use the official creation tool; AUTO judges and binds the exact child before its first request. Do not copy this recommendation as a new explicit user constraint. Query the child routing status for applied evidence.`
-        : v.status === 'fallback' ? `fallback: ${v.reason}. 按官方默认委派，并向用户简要说明原因。`
-        : v.status === 'needs-context' ? `needs-context: ${v.reason}. 补充目标与范围后再派发。`
-        : v.status ? `${v.status}: ${v.reason}. fork 与父会话保持一致，AUTO 不路由。`
+        : v.status === 'fallback' ? `fallback: ${v.reason}. Delegate using the official defaults and briefly explain why to the user.`
+        : v.status === 'needs-context' ? `needs-context: ${v.reason}. Add the goal and scope before dispatching.`
+        : v.status ? `${v.status}: ${v.reason}. A fork keeps the parent session settings; AUTO does not route it.`
         : MANUAL_TEXT }],
     },
     execute: async (args, exec) => {
@@ -71,15 +71,15 @@ export function routeSubagentTool(jev: JevClient, deps: ToolDeps) {
       // MANUAL (or disabled, or an unreachable root): no judgement and nothing leaves the machine.
       if (!root || deps.state.read(root.id).mode !== 'AUTO') return { routed: false, reason: 'manual' }
       if (args.path === 'fork') return { routed: false, status: 'unsupported', reason: 'fork' }
-      if (!args.provider) throw new Error('provider 为空；暂停委派并询问用户')
+      if (!args.provider) throw new Error('No provider specified; pause delegation and ask the user')
       const explicit = { ...(args.model ? { model: args.model } : {}), ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}) }
       // The preview captures its own preset; a later fresh child captures independently.
       const preset = resolvePreset(deps.readSettings().preset)
       const result = explicit.model && explicit.reasoningEffort ? { kind: 'ok' as const, depth: 'baseline' as const, capability: 'bounded' as const }
         : await jev.judgePolicy(buildState({ text: args.task, execution: preset.context.includes('execution') ? 'delegated' : undefined }), exec.signal, 'child', explicit.model ? 'depth' : explicit.reasoningEffort ? 'capability' : 'both', preset)
-      if (result.kind === 'cancelled' || exec.signal.aborted) throw new Error('子任务判断已取消；暂停委派并询问用户')
+      if (result.kind === 'cancelled' || exec.signal.aborted) throw new Error('Subtask judgment was cancelled; pause delegation and ask the user')
       if (result.kind === 'failed') return { routed: false, status: 'fallback', reason: `jev-${result.category}` }
-      if (result.capability === 'insufficient_context') return { routed: false, status: 'needs-context', reason: '请补充任务目标与范围' }
+      if (result.capability === 'insufficient_context') return { routed: false, status: 'needs-context', reason: 'Provide the task goal and scope' }
       const caller = exec.agent as SessionLike | undefined
       const config = caller?.session.requestHeader?.()?.config
       const parent = { model: config?.model ?? caller?.options?.model, reasoningEffort: config?.reasoningEffort ?? caller?.options?.reasoningEffort }

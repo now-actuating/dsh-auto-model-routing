@@ -121,7 +121,7 @@ it('puts bindings without a snapshot in the unknown group', () => {
  expect(group(r, 'policy-v2-d774ffe6/map-1')!.decisions).toBe(1)
 })
 
-it('spec Scenario "缺失字段与部分出现"', () => {
+it('spec Scenario "Missing and partially present fields"', () => {
  const h = makeHome()
  const usage = [{ inputTokens: 10, cacheWriteTokens: 4 }, { inputTokens: 20, cacheWriteTokens: 8 }, { inputTokens: 30, cacheWriteTokens: 0 }, { inputTokens: 40 }]
  writeSession(h, 'S1', [turn(1), user(1), ...usage.map((u, i) => call(`a-${i}`, 1, 1, u))])
@@ -132,7 +132,7 @@ it('spec Scenario "缺失字段与部分出现"', () => {
  expect(t.reasoningTokens).toEqual({ sum: null, mean: null, present: 0, calls: 4 })
 })
 
-it('spec Scenario "无请求头的缺口回合可见"', () => {
+it('spec Scenario "Turns without request headers appear as gaps"', () => {
  const h = makeHome()
  const events = []
  for (let n = 1; n <= 17; n++) events.push(...userTurn(n, `t${n}`, 2))
@@ -143,7 +143,7 @@ it('spec Scenario "无请求头的缺口回合可见"', () => {
  expect(r.coverage).toMatchObject({ userTurns: 17, turnsWithoutRecord: 7 })
 })
 
-it('spec Scenario "无记录的 AUTO 会话"', () => {
+it('spec Scenario "AUTO sessions with no records"', () => {
  const h = makeHome()
  writeSession(h, 'S1', userTurn(1, 'a', 1)); bindAll(h, 'S1', 'a', 1, 1)
  judge(h, 'L1', 1)
@@ -152,7 +152,7 @@ it('spec Scenario "无记录的 AUTO 会话"', () => {
  expect(buildReport(h).coverage.autoSessionsWithoutRecord).toBe(2)
 })
 
-it('spec Scenario "旧版 AUTO 回合不算作参照"', () => {
+it('spec Scenario "Old AUTO turns do not count as reference turns"', () => {
  const h = makeHome()
  const events = [header('gpt-6.1-sol', 'high', 0)]
  for (let n = 1; n <= 58; n++) events.push(...userTurn(n, `t${n}`, 1))
@@ -162,7 +162,7 @@ it('spec Scenario "旧版 AUTO 回合不算作参照"', () => {
  expect(buildReport(h).referenceBeforeAuto).toEqual([])
 })
 
-it('spec Scenario "参照只含 effort 分布"', () => {
+it('spec Scenario "The reference includes only the effort distribution"', () => {
  const h = makeHome()
  const events = [header('gpt-6.1-sol', 'high', 0)]
  for (let n = 1; n <= 5; n++) events.push(...userTurn(n, `t${n}`, 2))
@@ -217,7 +217,7 @@ it('produces byte-identical output for the same input', () => {
  bindAll(h, 'S1', 'a', 3, 1, { depth: 'lower', effort: 'low' }); bindAll(h, 'S1', 'b', 2, 2)
  expect(JSON.stringify(buildReport(h))).toBe(JSON.stringify(buildReport(h)))
 })
-it('spec Scenario "缺快照记录独立成组"', () => {
+it('spec Scenario "Records without snapshots form their own group"', () => {
  const h = makeHome()
  writeSession(h, 'S1', [...userTurn(1, 'a', 33), ...userTurn(2, 'b', 191), ...userTurn(3, 'c', 12)])
  bindAll(h, 'S1', 'a', 33, 1, { version: null })
@@ -233,7 +233,7 @@ it('spec Scenario "缺快照记录独立成组"', () => {
  expect(byKey.claude!.subgroups[0]!.calls).toBe(12)
  for (const g of r.groups) expect(g).not.toHaveProperty('version')
 })
-it('spec Scenario "不带版本字段的绑定同样计入覆盖"', () => {
+it('spec Scenario "Bindings without a version field still count toward coverage"', () => {
  const h = makeHome()
  const events = []
  for (let n = 1; n <= 17; n++) events.push(...userTurn(n, `t${n}`, 2))
@@ -242,7 +242,7 @@ it('spec Scenario "不带版本字段的绑定同样计入覆盖"', () => {
  for (let n = 1; n <= 10; n++) bindAll(h, 'S1', `t${n}`, 1, n, { version: null, strategy: 'claude' })
  expect(buildReport(h).coverage).toMatchObject({ userTurns: 17, turnsWithoutRecord: 7 })
 })
-it('spec Scenario "不带版本字段的绑定确定同一分界"', () => {
+it('spec Scenario "Bindings without a version field establish the same boundary"', () => {
  const reference = (extra: Partial<Bind>) => {
   const h = makeHome()
   const events = [header('gpt-6.1-sol', 'high', 0)]
@@ -257,7 +257,7 @@ it('spec Scenario "不带版本字段的绑定确定同一分界"', () => {
  expect(historical).toEqual([{ model: 'gpt-6.1-sol', calls: 10, sessions: 1, effort: { high: 10 }, autoEffort: { medium: 2 } }])
  expect(reference({ version: null, strategy: 'codex' })).toEqual(historical)
 })
-it('spec Scenario "只计已绑定消息"', () => {
+it('spec Scenario "Count only bound messages"', () => {
  const h = makeHome()
  writeSession(h, 'S1', userTurn(1, 'a', 31))
  bindAll(h, 'S1', 'a', 12, 1)
@@ -266,7 +266,7 @@ it('spec Scenario "只计已绑定消息"', () => {
  expect(g.calls).toBe(12)
  expect(g.tokens.inputTokens).toMatchObject({ sum: 120, calls: 12 })
 })
-it('spec Scenario "同一决策跨多个请求"', () => {
+it('spec Scenario "One decision spans multiple requests"', () => {
  const h = makeHome()
  writeSession(h, 'S1', userTurn(1, 'b', 17))
  for (let i = 0; i < 6; i++) bind(h, { session: 'S1', message: `b-${i}`, decision: 2, requestSeq: 274 })

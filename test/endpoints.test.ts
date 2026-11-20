@@ -8,7 +8,7 @@ function fixture(){
  for(const agent of agents.slice(0,2)) state.setMode(agent.id,'AUTO')
  return {disk,state,resolve:async(id:string)=>agents.find(a=>a.id===id)}
 }
-it('spec Scenario "无效会话被拒绝且无副作用"',async()=>{
+it('spec Scenario "Invalid sessions are rejected without side effects"',async()=>{
  const {disk,state,resolve}=fixture();const before=JSON.stringify([...disk])
  for(const body of [{mode:'MANUAL'},{sessionId:42,mode:'MANUAL'},{sessionId:'unknown',mode:'MANUAL'},{sessionId:'child',mode:'MANUAL'},{sessionId:'S1',mode:'bad'}]) {
   const response=await endpoint('setMode',body,resolve,state)
@@ -17,7 +17,7 @@ it('spec Scenario "无效会话被拒绝且无副作用"',async()=>{
  }
  expect(state.read('S1').mode).toBe('AUTO')
 })
-it('spec Scenario "只修改目标会话"',async()=>{
+it('spec Scenario "Only the target session is modified"',async()=>{
  const {state,resolve}=fixture();const before=state.read('S2')
  expect((await endpoint('setMode',{sessionId:'S1',mode:'MANUAL'},resolve,state)).status).toBe(200)
  expect(state.read('S1')).toEqual({mode:'MANUAL'})

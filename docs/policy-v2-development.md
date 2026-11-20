@@ -1,70 +1,70 @@
-# policy-v2 开发与验收记录
+# policy-v2 development and acceptance record
 
-> 历史记录：命名、路径与行为以记录时的 0.4.x 版本为准；0.5.0 起只有一套 AUTO 策略，规则文件为 `src/rubric.json`，家族策略见 `src/strategies/`。
+> Historical record: Names, paths, and behavior reflect the 0.4.x version at the time. From 0.5.0 onward, AUTO has one strategy, with rules in `src/rubric.json` and family strategies in `src/strategies/`.
 
-## 状态
+## Status
 
-2026-10-25 用户在最小真实网关验收后追加授权：AUTO 默认升级，不再要求版本开关。默认配置为内部 policy-v2；显式 legacy 仅供回滚。旧四档配置保留但不参与新策略，MANUAL 不变。已构建部署、通过分离控制进程重启现有3080服务，并在实际GUI验证无版本选择、显示 AUTO 已使用新策略。真实质量/返工/成本对照仍未完成，不宣称性能收益。
+On 2026-10-25, after minimal live gateway acceptance, the user authorized upgrading AUTO by default without a version switch. The default configuration uses internal policy-v2; explicit legacy is for rollback only. The old four-tier settings are kept but ignored by the new strategy, and MANUAL is unchanged. The build was deployed, the existing service on port 3080 was restarted from a separate control process, and the live GUI confirmed there was no version selector and that AUTO showed the new strategy in use. A real comparison of quality, rework, and cost remains incomplete; no performance gains are claimed.
 
-## 实现入口
+## Implementation entry points
 
-- [Jev 契约](../src/jev.ts)：复用认证、deadline、body 上限、错误分类；原 tier 问题不变。新主请求只问 depth；子请求一次问 capability/depth，显式约束只问未指定维度。
-- [独立映射](../src/routing.ts)（当时为 `src/policy-v2.ts`）：版本化能力槽，effort 推荐起点按受支持序列最多移动一档，受 cap 限制，不自动使用 max。映射是初始基线，Codex analytical/frontier 都是 Sol，未虚构第三模型。
-- [宿主接入](../src/policy-host.ts)：官方 `tools/execute` → AsyncLocalStorage → `agent/created` 绑定精确 child ID 和 parent/root；不依赖 prompt 相似度。主会话在每一步的 `agent/pre-step` 中算 effort，先 `selectModel` 同步再写入本步固定的选择（DSH 0.2.2 起 `agent/request` 不能再改写，与本步选择不一致会抛错）；受管子会话在其 `agent/created` 中用创建工具的 `prompt` 判断，并用 `agent.model.select(route)` 写入子会话自己的选择；`agent/request` 只核验；`request/header` 记录匹配证据。
-- [持久化](../src/policy-store.ts)：每 child 哈希路径、严格 schema、owner-only 原子替换，只有身份/版本/约束/路由/状态，不含任务原文。缺失、损坏、未完成恢复不默默继承；未完成决策不能用后续消息重新分类。
-- [工具](../src/subagent-tool.ts)：policy-v2 下 optional preview，仅 recommended；普通创建工具负责精确应用，不把预览冒充 applied。
-- [设置](../src/client/settings-section.ts)：无用户版本开关；省略即新策略，旧四档表仅在显式 legacy 回滚时显示。当前能力槽是版本化代码，不新增另一套可编辑映射表。
-- [状态 API](../src/index.ts)：`auto-model-routing.childRouting` 接收 `{sessionId}`；主 state 返回 policy/depth/effort。v2 不使用 `selectModel`，避免全局默认副作用。
+- [Jev contract](../src/jev.ts): Reuses authentication, deadline, body limit, and error classification. The original tier question is unchanged. New main requests ask only about depth; child requests ask capability and depth in one call, skipping dimensions with explicit constraints.
+- [Independent mapping](../src/routing.ts) (then `src/policy-v2.ts`): Versioned capability slots. Effort moves at most one step from the recommended starting point in the supported sequence, subject to the cap, and never automatically uses max. The mapping is an initial baseline: both Codex analytical and frontier use Sol; no third model was invented.
+- [Host integration](../src/policy-host.ts): Official `tools/execute` → AsyncLocalStorage → `agent/created` binds the exact child ID and parent/root without relying on prompt similarity. The main session computes effort in each step's `agent/pre-step`, syncs via `selectModel` first, then writes to the step's pinned selection (from DSH 0.2.2 onward, `agent/request` cannot override it and a mismatch throws). A managed child's `agent/created` classifies the creation tool's `prompt` and uses `agent.model.select(route)` to write the child's own selection. `agent/request` only verifies; `request/header` records matching evidence.
+- [Persistence](../src/policy-store.ts): Per-child hashed path, strict schema, and owner-only atomic replacement. Stores only identity, versions, constraints, route, and status, not original task text. Missing, corrupt, or incomplete recovery does not silently inherit. Later messages cannot reclassify an unfinished decision.
+- [Tool](../src/subagent-tool.ts): Under policy-v2, optional preview is only `recommended`. The ordinary creation tool applies the exact route; preview is not reported as `applied`.
+- [Settings](../src/client/settings-section.ts): No user-facing version switch. Leaving it unspecified selects the new strategy; the old four-tier table is shown only on explicit legacy rollback. Current capability slots are versioned in code rather than in another editable mapping table.
+- [State API](../src/index.ts): `auto-model-routing.childRouting` accepts `{sessionId}`; main state returns policy/depth/effort. v2 does not use `selectModel`, avoiding the global default side effect.
 
-## 覆盖矩阵
+## Coverage matrix
 
-| 路径/行为 | 证据 | 结果/边界 |
+| Path or behavior | Evidence | Result and limits |
 |---|---|---|
-| 官方 ordinary fresh continuable 工具与 provider | [整链脚本](../scripts/host-probe-children.mjs)（当时为 `policy-v2-host-probe.mjs`）加载官方 0.2.0-rc.2、真实生产插件，fake Jev/adapter | 实际请求 model/effort 匹配；全宿主关闭重建后恢复，不重判 |
-| 官方 fresh teammate 工具与服务 | 同上 | 创建、后续消息和全宿主恢复通过，不重选 |
-| 并发创建与显式模型/effort | [宿主测试](../test/policy-host.integration.test.ts)官方 Tools/Agents，测试创建工具 | 并发精确身份隔离；两者指定零判断；普通/teammate 官方 provider 的并发压力未测 |
-| fork / teammate fork | tools wrapper 可提前拒绝 | unsupported，真实历史兼容未验证，不擅自转 fresh |
-| 未绑定 service API、别名工具、远端 ACP | 子会话请求时若发现启用 v2 而无绑定则停止 | 不宣称支持；根链不可达时不作自动决策。未宣称能阻止进程外原生创建 |
-| MANUAL / 切回原策略 | unit + host tests | 不做新判断；已绑定实例保留创建初始路线，不因后续消息换模 |
-| needs-context / Jev 402 / 配置失效 | host tests | 子请求停止，根仍 AUTO，不静默替代或自治重试 |
-| 恢复损坏 / 身份不匹配 | store tests | fail closed；单进程按 child 写，无跨进程争用/崩溃注入证明 |
-| 实际请求与路线不一致 | host mismatch test | 记录 failed，不标 applied；`agent/request` 核验与 header observer 抛错为尽力阻断（0.2.2 起运行体自身也拒绝与本步选择不一致的 `agent/request` 结果），不将配置匹配等同调用成功 |
-| 当前允许列表与父快照 | 新鲜 catalog 校验 + 父 `subagent/model-selection-policy`（存在时） | 不用较新全局列表扩大父快照；整链脚本的 allowlist 是合成 service seam，未验证真实 GUI 设置装配 |
+| Official ordinary fresh continuable tool and provider | [End-to-end script](../scripts/host-probe-children.mjs) (then `policy-v2-host-probe.mjs`) loads official 0.2.0-rc.2 and the production plugin with fake Jev and adapter | Actual request model/effort match; survives full host shutdown and reconstruction without reclassification |
+| Official fresh teammate tool and service | Same as above | Creation, later messages, and full host recovery pass without reselection |
+| Concurrent creation and explicit model/effort | [Host test](../test/policy-host.integration.test.ts) with official Tools/Agents and test creation tools | Exact identities stay isolated under concurrency; no judgement when both dimensions are explicit. No concurrency stress test for official ordinary/teammate providers |
+| fork / teammate fork | Tools wrapper can reject upfront | Unsupported; real history compatibility is unverified, with no automatic conversion to fresh |
+| Unbound service API, aliased tools, remote ACP | Stops at the child request if v2 is enabled but no binding exists | No support claim; no automatic decision when the root chain is unreachable. Does not claim to block native out-of-process creation |
+| MANUAL / rollback to original strategy | Unit and host tests | No new judgement; bound instances keep the route selected at creation and do not switch models on later messages |
+| needs-context / Jev 402 / invalid configuration | Host tests | Child request stops; root remains AUTO. No silent substitution or autonomous retry |
+| Corrupt recovery data / identity mismatch | Store tests | Fails closed; per-child writes in one process, without cross-process contention or crash injection evidence |
+| Actual request differs from route | Host mismatch test | Records `failed`, not `applied`. Throwing in `agent/request` verification and the header observer is best-effort blocking (from 0.2.2 onward the runtime itself also rejects an `agent/request` result that differs from the step's selection). A configuration match does not imply call success |
+| Current allowlist and parent snapshot | Fresh catalog check + parent's `subagent/model-selection-policy`, when present | A newer global list does not widen the parent snapshot. The end-to-end script uses a synthetic allowlist service seam, not verified live GUI settings wiring |
 
-适配器/Jev 都为 fake 的宿主测试不证明真实 provider 兼容、真实工具 schema 部署或网络效果。实际 `applied` 只代表 request/header 配置匹配，不代表任务验收、模型成功或底层 provider 尊重 effort。
+Host tests with fake adapters and Jev do not prove real provider compatibility, deployment of actual tool schemas, or network performance. `applied` means only that request/header configurations matched; it does not mean the task passed, the model call succeeded, or the provider honored effort.
 
-## 验证
+## Verification
 
-- 真实 Jev：10 请求 / development 5 + holdout 5，均符合预期，US$0.000344148；见 [Jev 记录](jev-policy-v2-validation.md)。没有实际子模型调用。
-- package `npm run typecheck`、`npm test`（29 文件 / 184 测试）、`npm run build` 通过；构建保留现有 tsdown deprecation/format warning，不顺手升级工具链。
-- 官方整链脚本：ordinary + fresh teammate 创建/请求/全宿主冷恢复通过。
-- 早期 [宿主能力探针](host-capability-report.md)证明 service/request 基础能力；新整链脚本补充生产插件与正式工具绑定，而非把之前的测试标签 oracle 当生产实现。
+- Live Jev: 10 requests / 5 development + 5 holdout. All matched expectations and cost US$0.000344148; see [Jev record](jev-policy-v2-validation.md). No actual child model calls.
+- `npm run typecheck`, `npm test` (29 files / 184 tests), and `npm run build` passed in the package. Existing tsdown deprecation/format warnings were left alone; no incidental toolchain upgrade.
+- Official end-to-end script: ordinary and fresh teammate creation, requests, and full host cold recovery passed.
+- The earlier [host capability probe](host-capability-report.md) established basic service/request capability. The new end-to-end script adds the production plugin and official tool bindings rather than treating the earlier test-label oracle as production code.
 
-重跑整链：先 package build；在原临时官方 prefix 的基础上，精确安装 `@deepseek-ai/dsh-tool-subagent@0.2.0-rc.2`、`@deepseek-ai/dsh-experimental-tool-agent-team@0.2.0-rc.2`、`@deepseek-ai/dsh-launch-environment@0.2.0-rc.2`（`--save-exact --ignore-scripts`），然后：
+To rerun end to end, build the package first. In the original temporary official prefix, install the exact versions `@deepseek-ai/dsh-tool-subagent@0.2.0-rc.2`, `@deepseek-ai/dsh-experimental-tool-agent-team@0.2.0-rc.2`, and `@deepseek-ai/dsh-launch-environment@0.2.0-rc.2` (`--save-exact --ignore-scripts`), then run:
 
 ```sh
 node packages/dsh-auto-model-routing/scripts/host-probe-children.mjs "$PROBE_HOME"
 ```
 
-官方 standing tool 的 `modelSelectionSettings:true` 要求 preset-scoped context；隔离脚本没有伪造该 composition，使用 standing fixed-schema 工具 + 合成 allowlist。因此显式选择与父快照另用 host tests 验证，真实 preset/GUI 组合不记为通过。
+The official standing tool with `modelSelectionSettings:true` requires a preset-scoped context. The isolated script does not fake that composition; it uses standing fixed-schema tools with a synthetic allowlist. Explicit selection and parent snapshots are therefore covered separately by host tests, and the live preset/GUI combination is not marked as passed.
 
-## 独立审查后的修复
+## Fixes after independent review
 
-用户授权只读独立审查后，修复子输入来源过滤、模式往返 epoch 撤销、await 后 MANUAL 复核，以及路由记录丢失时的 sidecar 绑定检测。原尝试自定义 session 事件被官方持久化拒绝，已完全移除；不依赖上游改动。完整官方 cold resume 探针重新通过。独立最终聚焦复核结论 PASS；其测试命令未能找到 vitest，测试通过证据来自主会话的完整运行，不将其静态审查冒充独立测试通过。
+After the user authorized read-only independent review, fixes covered child input provenance filtering, epoch invalidation when toggling modes, a MANUAL recheck after `await`, and sidecar binding detection when the routing record is missing. Official persistence rejected the attempted custom session events, so they were removed entirely; there is no dependency on upstream changes. The full official cold-resume probe passed again. The final focused independent review concluded PASS, but its test command could not find vitest. Passing test evidence comes from the main session's full run; the independent static review is not reported as a separate test pass.
 
-`.bound` 标记只保存 child ID，不包含任务；路由 JSON 缺失而标记保留时 fail closed。整个插件状态目录（两份记录）同时丢失、或旧版无标记记录丢失，无法检测，不能泛称所有存储丢失都已覆盖。
+The `.bound` marker stores only the child ID, not the task. If routing JSON is missing but the marker remains, the system fails closed. It cannot detect loss of the entire plugin state directory (both records) or loss of older records without markers, so not all storage loss is covered.
 
-## 网关接入（2026-10-25）
+## Gateway integration (2026-10-25)
 
-用户指定实际模型先只经当时配置的自托管网关，OpenRouter 仅 Jev，不用本地 Claude/codex。v2 支持精确 transport 身份，持久记录保留完整 model ID；自动映射使用 `claude/...` / `codex/...` 家族，不把网关 route 伪装为本地 provider。旧映射版本已有完成路由保持原配置；其他网关模型可显式使用，未定义能力槽时不自动猜；未知模型 effort 使用 LLM 目录 defaultEffort，缺失则停止。固定已知家族沿用版本化官方起点。
+The user specified that actual models should initially run only through the then-configured self-hosted gateway, with OpenRouter reserved for Jev and no local Claude/codex. v2 supports exact transport identities and persists the full model ID. Automatic mapping uses `claude/...` and `codex/...` families without disguising a gateway route as a local provider. Completed routes under old mappings retain their original configuration. Other gateway models can be selected explicitly; no automatic guesses are made without a defined capability slot. For unknown models, effort uses the LLM catalog's `defaultEffort` and stops if it is missing. Known families keep their versioned official starting points.
 
-当前 legacy catalog 仍不包含该网关；持久子路由重放使用独立全量策略目录，避免关闭试验导致既有实例失效。目录/allowlist 校验对精确 provider+model 执行，模型名含斜线只在 v2 网关路径允许，旧配置校验不放宽。
+The legacy catalog still does not include this gateway. Persistent child route replay uses a separate complete policy catalog so turning off the experiment does not invalidate existing instances. Catalog and allowlist checks use the exact provider+model. Slashes in model names are allowed only on the v2 gateway path; legacy configuration validation is not relaxed.
 
-验证：190 测试、类型检查、构建通过；官方工具整链脚本加网关专用 flag 后通过 ordinary/fresh teammate 和全宿主冷恢复（fake adapter/Jev，无外网）。当时网关插件源码显示 resolveModel.reasoning 从缓存努力等级构建 defaultEffort；尚未验证在线生成或真实 effort 消费，不把缓存/模拟当实测。
+Verification: 190 tests, typechecking, and build passed. With the gateway-specific flag, the official-tool end-to-end script passed ordinary/fresh teammate and full host cold recovery (fake adapter and Jev, no external network). At the time, the gateway plugin source showed `resolveModel.reasoning` building `defaultEffort` from cached effort levels. Online generation and actual use of effort were not verified; cache and simulation are not live measurements.
 
-## 回滚与后续
+## Rollback and follow-up
 
-- 切回 legacy 或 MANUAL：停止新判断；已有 child 继续恢复初始路线，避免意外退回父模型。
-- 完全移除/停用插件：请求覆盖停止，官方 cold resume 回到创建 descriptor 配置；操作前应确认已创建子任务可以接受该变化。
-- 不修改 main current spec，不归档 change；其约束继续描述默认旧策略。试验有独立 delta spec。
-- 未运行真实子模型保留集对照、返工总成本评估、浏览器部署验收、全仓测试、sync、发布。4.3 和默认推广不完成；真实质量与收益未知，不记为零。
+- Switch back to legacy or MANUAL: no new judgements. Existing children continue restoring their initial routes, avoiding an unexpected fallback to the parent model.
+- Remove or disable the plugin entirely: request overrides cease and official cold resume returns to the creation descriptor configuration. Check beforehand that existing child tasks can tolerate this change.
+- Do not modify the current spec on main or archive the change. Its constraints still describe the previous default strategy. The experiment has a separate delta spec.
+- No real child model holdout comparison, total rework cost evaluation, browser deployment acceptance, repository-wide tests, sync, or release was run at this stage. 4.3 and default rollout were incomplete; actual quality and benefits were unknown, not zero.

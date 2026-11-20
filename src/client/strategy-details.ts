@@ -1,11 +1,10 @@
 import { createElement as h } from 'react'
-import { resolvePreset, type Localized, type Preset } from '../presets/index.js'
+import { resolvePreset, type Preset } from '../presets/index.js'
 import { registry } from '../strategies/index.js'
 import { t } from './locales.js'
 
 /** Read-only: criteria and slots are imported from the executable policy, never copied. */
 /** The visible half of a preset's bilingual metadata. */
-export const localized = (text: Localized) => t('presetLang') === 'en' ? text.en : text.zh
 
 export function StrategyDetails({ preset = resolvePreset(undefined) }: { preset?: Preset }) {
   return h('details', { className: 'amr-strategy' },
@@ -23,9 +22,9 @@ export function StrategyDetails({ preset = resolvePreset(undefined) }: { preset?
     h('h4', null, t('strategyLimits')),
     h('p', null, t('strategyLimitsBody')),
     h('h4', null, t('strategyPreset')),
-    h('p', null, h('strong', null, localized(preset.title)), ` (${preset.id})`),
-    h('p', null, localized(preset.summary)),
-    h('p', null, `${t('strategyEvidence')}: ${localized(preset.evidence)}`),
+    h('p', null, h('strong', null, preset.title), ` (${preset.id})`),
+    h('p', null, preset.summary),
+    h('p', null, `${t('strategyEvidence')}: ${preset.evidence}`),
     h('p', null, `${t('strategySources')}: `, ...preset.sources.flatMap((s, i) => [i ? ' · ' : '', h('a', { key: s.url, href: s.url, target: '_blank', rel: 'noopener noreferrer' }, s.title), ` (${s.date})`])),
     h('h4', null, t('strategyRules')),
     h('p', null, t('strategyRulesBody')),

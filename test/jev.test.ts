@@ -19,7 +19,7 @@ async function setup(reply: Reply, key: string | undefined = 'sk-or-test-SECRET'
 
 it('request_body_and_limits', async () => {
  const { server, client } = await setup(depth('higher', 0.73, { lower: 0.1, baseline: 0.1, higher: 0.8, bogus: 2, huge: 'x' }))
- const result = await judge(client, 'Previous user-turn tier: none\nUser message:\n继续', new AbortController().signal)
+ const result = await judge(client, 'Previous user-turn tier: none\nUser message:\nContinue', new AbortController().signal)
  // Distribution keeps only finite numbers in [0, 1].
  expect(result).toEqual({ kind: 'ok', depth: 'higher', confidence: 0.73, probabilities: { lower: 0.1, baseline: 0.1, higher: 0.8 }, ms: expect.any(Number), decisionProvider: 'openrouter', decisionModel: 'typesafe/jev-1.13' })
  expect(server.bodies).toHaveLength(1)
@@ -27,12 +27,12 @@ it('request_body_and_limits', async () => {
  expect(Object.keys(body).sort()).toEqual(['model', 'questions', 'state'])
  expect(body.model).toBe('typesafe/jev-1.13')
  expect(body.questions).toEqual({ depth: QUESTIONS.depth })
- expect(body.state).toContain('继续')
+ expect(body.state).toContain('Continue')
  expect(server.headers[0]!.authorization).toBe('Bearer sk-or-test-SECRET')
  expect(new JevClient(env('k')).url).toBe('https://openrouter.ai/api/alpha/decisions')
 })
 
-it('spec Scenario "期限按设置生效"', async () => {
+it('spec Scenario "The configured deadline applies"', async () => {
  const {server} = await setup((_req,res)=>{setTimeout(()=>res.end(JSON.stringify({answers:{depth:{choice:'lower'}}})),2000)})
  let key: string|undefined = 'key-A'
  let timeout = 1500
@@ -61,7 +61,7 @@ it('cancel_interrupts_pending_credential_lookup', async () => {
  expect(await pending).toEqual({kind:'cancelled'})
  expect(server.bodies).toHaveLength(0)
 })
-it('spec Scenario "不跟随重定向"', async () => {
+it('spec Scenario "Do not follow redirects"', async () => {
  const target = await fakeJev(depth('lower'))
  try {
   const { client } = await setup((_req, res) => { res.writeHead(302, { location: `${target.base}/x` }); res.end() })
@@ -101,11 +101,11 @@ it('failure_categories', async () => {
 it('response_limit_counts_utf8_bytes', async () => {
  const prefix = '{"answers":{"depth":{"choice":"lower"}},"padding":"'
  const suffix = '"}'
- const exact = prefix + '界'.repeat(1000) + ' '.repeat(65536 - Buffer.byteLength(prefix + suffix) - 3000) + suffix
+ const exact = prefix + '€'.repeat(1000) + ' '.repeat(65536 - Buffer.byteLength(prefix + suffix) - 3000) + suffix
  const { server, client } = await setup((_req, res) => { res.end(exact) })
  expect(Buffer.byteLength(exact)).toBe(65536)
  expect(await judge(client, 'x', new AbortController().signal)).toMatchObject({ kind: 'ok', depth: 'lower' })
- const oversized = exact.replace('界', '界 ')
+ const oversized = exact.replace('€', '€ ')
  server.set((_req, res) => { res.end(oversized) })
  expect(oversized.length).toBeLessThan(65536)
  expect(Buffer.byteLength(oversized)).toBe(65537)

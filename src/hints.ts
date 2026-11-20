@@ -5,13 +5,13 @@ export type JevCategory =
 
 /** Human-readable hint per category, shown on the chip, panel and tool errors. */
 export const CATEGORY_HINTS: Readonly<Record<JevCategory, string>> = {
-  'missing-credential': '未配置所选决策服务的 API key',
-  'insufficient-credits': '余额不足，请充值',
-  unauthorized: 'key 无效或无权限',
-  'rate-limited': '请求被限流',
-  'region-blocked': '地区受限',
-  rejected: '请求被拒绝',
-  unavailable: 'Jev 服务不可用',
-  timeout: 'Jev 响应超时',
-  'invalid-response': 'Jev 响应无效',
+  'missing-credential': 'No API key configured for the selected decision service',
+  'insufficient-credits': 'Out of credits, please top up',
+  unauthorized: 'The key is invalid or lacks permission',
+  'rate-limited': 'The request was rate limited',
+  'region-blocked': 'Region blocked',
+  rejected: 'The request was rejected',
+  unavailable: 'The Jev service is unavailable',
+  timeout: 'The Jev response timed out',
+  'invalid-response': 'The Jev response was invalid',
 }

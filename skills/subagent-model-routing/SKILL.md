@@ -1,29 +1,29 @@
 ---
 name: subagent-model-routing
-description: 创建或复用子智能体前使用：通过官方 fresh 创建工具委派，照实传递用户或 lead 指定的模型与 effort；AUTO 在创建时自行选配，route_subagent 只是可选预览。
+description: 'Use before creating or reusing a subagent: delegate through the official fresh creation tool and pass through the model and effort specified by the user or lead as given; AUTO makes its own selection at creation time, and route_subagent is only an optional preview.'
 ---
 
-# 子会话模型选择
+# Child Session Model Selection
 
-AUTO 的子任务路由由插件在**官方 fresh 创建工具**创建的精确子会话首次请求前完成：插件判断能力与投入、校验当前目录与官方允许列表，并把路由绑定到该子会话。主 Agent 负责拆解、派发与验收，不自行估档。工具跟随所属主会话的模式：只有主会话为 AUTO 时才判断，并把脱敏后的任务文本发送给设置中所选的决策服务；MANUAL 时不判断、不外发。
+In AUTO, the plugin routes a subtask before the first request of the exact child session created by an **official fresh creation tool**: it assesses the capability and effort needed, checks the current directory and the official allowlist, and binds the route to that child session. The main agent breaks down the work, delegates it, and verifies the results; it does not estimate the tier itself. The tool follows the mode of its main session: only in AUTO does it make a routing decision and send the redacted task text to the decision service selected in settings; in MANUAL it makes no routing decision and sends nothing externally.
 
-## 创建
+## Creation
 
-1. **使用官方 fresh 创建工具**（`subagent` 或 fresh `spawn_teammate`），给出清楚的目标与范围。目标或范围不足时，插件会返回 needs-context，请补充描述后重新创建。
-2. **显式指定的值照实传递**：用户或 lead 指定了模型或 effort 时，原样传给官方工具。只指定一个维度时，插件只判断另一个；两者都指定时不调用 Jev，只做校验。
-3. **`route_subagent` 只是可选预览**：派发不需要先预览，路由只在创建时判断一次。它返回的 `status: recommended` 不等于已应用；不要把推荐结果当成显式参数传给官方工具，让插件在创建时自行选配。
-4. **主会话为 MANUAL**：`route_subagent` 返回 `routed: false`。此时按官方默认委派，只传用户或 lead 指定的值，不传其它 provider/model/reasoning_effort，也不猜档位。
-5. **标注**：在 `description` 末尾以 `[model·effort]` 标注实际使用的配置，例如 `检查鉴权边界 [<model>·<effort>]`；不确定时先查第 7 条的应用证据。
-6. **fork 与父会话保持一致**：AUTO 不路由 fork，按 DSH 原生行为继承父会话配置。需要按任务选配时改用 fresh。
-7. **应用证据**：通过 `childRouting` 状态接口查看对应子会话的 recommended / applied / unsupported / needs-context / failed。applied 来自实际请求头，而不是工具推荐；未绑定的创建路径不算已路由。
+1. **Use an official fresh creation tool** (`subagent` or fresh `spawn_teammate`) and give it a clear objective and scope. If the objective or scope is insufficient, the plugin returns needs-context; add the missing details before trying to create the child session again.
+2. **Pass explicitly specified values through unchanged**: If the user or lead specifies a model or effort, pass it to the official tool as given. If only one is specified, the plugin decides only the other; if both are specified, it only validates them and does not call Jev.
+3. **`route_subagent` is only an optional preview**: No preview is required to delegate; the routing decision is made only once at creation time. A returned `status: recommended` does not mean the route was applied. Do not pass the recommendation to the official tool as explicit parameters; let the plugin make its own selection at creation time.
+4. **When the main session is in MANUAL**: `route_subagent` returns `routed: false`. Delegate using the official defaults, passing only values specified by the user or lead. Do not pass any other provider/model/reasoning_effort values or guess the tier.
+5. **Labeling**: At the end of `description`, label the configuration actually used as `[model·effort]`, for example, `Check authorization boundaries [<model>·<effort>]`. If unsure, first check the evidence of application in item 7.
+6. **Forks stay consistent with their parent session**: AUTO does not route forks; under native DSH behavior they inherit the parent session's configuration. Use fresh creation instead when task-specific selection is needed.
+7. **Evidence of application**: Check recommended / applied / unsupported / needs-context / failed for the corresponding child session via the `childRouting` status interface. The applied status comes from the actual request headers, not the tool's recommendation; creation paths without a bound route do not count as routed.
 
-## 失败
+## Failures
 
-8. 若调用了预览：返回 `status: fallback`（目录或允许列表中没有可用路由、判断服务失败等）时，按官方默认委派并向用户简要说明原因；返回 `needs-context` 时补充目标与范围后再派发；返回错误（含判断被取消）时**暂停委派并询问用户**，把错误原文告诉用户，不得猜测档位、换用其它模型、改由主会话自己完成或自行重试。创建时路由不可用会自动退化为 DSH 默认行为，并在主会话面板中告警。
-9. 工具不存在（插件未启用）：告知用户“子会话 Jev 选模未启用”，然后按官方默认委派，只传用户或 lead 指定的值。
+8. If you called the preview: When it returns `status: fallback` (no usable route in the directory or allowlist, decision service failure, etc.), delegate using the official defaults and briefly explain why to the user. When it returns `needs-context`, add the objective and scope before delegating. When it returns an error (including a canceled decision), **pause delegation and ask the user**. Tell the user the exact error text; do not guess the tier, switch to another model, do the work in the main session instead, or retry on your own. If routing is unavailable at creation time, it automatically falls back to the default DSH behavior and displays a warning in the main session panel.
+9. If the tool is unavailable (the plugin is not enabled), tell the user "Jev model selection for child sessions is not enabled," then delegate using the official defaults, passing only values specified by the user or lead.
 
-## 复用
+## Reuse
 
-10. 向已有子会话发送新任务前，先比较它的 `[model·effort]` 标注与新任务的需求。需要更高投入、不同模型家族，或无法确认原配置时，**新建**子会话。已创建的子会话收到后续消息时不会重新选模；创建后不动态修改其模型或 effort。
+10. Before sending a new task to an existing child session, compare its `[model·effort]` label with the new task's requirements. **Create a new** child session if higher effort or a different model family is needed, or if the original configuration cannot be confirmed. Subsequent messages to an existing child session do not trigger model selection again; do not dynamically change its model or effort after creation.
 
-此 skill 是使用指引，不能强制 Agent 每次委派前都执行某个工具。与环境级指令「子会话派发」一致：直接用官方 fresh 工具派发，预览可选。
+This skill is usage guidance and cannot force an agent to call a particular tool before every delegation. It is consistent with the environment-level "Child Session Delegation" instruction: delegate directly through the official fresh tool; preview is optional.

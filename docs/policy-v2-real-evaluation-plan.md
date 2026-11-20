@@ -1,34 +1,34 @@
-# policy-v2 真实任务对照（计划；完整对照未执行）
+# policy-v2 real-task comparison (plan; full comparison not run)
 
-> 历史记录：命名、路径与行为以记录时的 0.4.x 版本为准；0.5.0 起只有一套 AUTO 策略，规则文件为 `src/rubric.json`，家族策略见 `src/strategies/`。
+> Historical record: Names, paths, and behavior reflect the 0.4.x version at the time. From 0.5.0 onward, AUTO has one strategy, with rules in `src/rubric.json` and family strategies in `src/strategies/`.
 
-## 目的与门槛
+## Purpose and prerequisites
 
-下一步不是直接部署，而是在独立评审修复后验证真实子模型质量、耗时与总开销。现有 10 个 Jev 分类样例不是执行任务基准，不能把其标签命中率当任务成功率。不得消耗剩余 Jev 授权来调用其它模型；2026-10-25 用户已授权以最小必要订阅调用验收并本地部署，不再按美元预算审批；仅经当时的自托管网关。当前真实最小验收已完成，完整对照仍未完成；该次验收记录已随 0.6.6 从发布文档中移除，原文可在 git 历史中检索。
+The next step is not immediate deployment but validation of real child model quality, elapsed time, and total cost after fixes from independent review. The 10 existing Jev classification cases are not a task execution benchmark; their label hit rate is not a task success rate. Do not spend the remaining Jev authorization on other models. On 2026-10-25, the user authorized acceptance testing and local deployment with the minimum necessary subscription calls through the then-configured self-hosted gateway, without further dollar-budget approval. Minimal live acceptance is complete, but the full comparison is not. The acceptance record was removed from the release documentation in 0.6.6 and can be retrieved from git history.
 
-## 已确认的执行入口（2026-10-25）
+## Confirmed execution path (2026-10-25)
 
-用户明确本机网络约束：OpenRouter 仅用于 Jev；实际子模型先只经当时配置的自托管网关（含其中的 GPT/Claude 等模型）。不调用本地 Claude，不调用本机 codex/subscriptions，也不使用 OpenRouter 执行模型。
+The user specified the network constraints for this machine: OpenRouter is for Jev only. Actual child models initially run only through the then-configured self-hosted gateway, including its GPT and Claude models. Do not call local Claude, local codex/subscriptions, or OpenRouter for execution models.
 
-本机缓存显示当时网关 provider 的 model ID 形如 `claude/claude-haiku-5-5`、`codex/gpt-6-luna`。缓存只证明曾发现的目录，不证明当前在线可用或实际 effort 生效。
+The local cache showed gateway provider model IDs such as `claude/claude-haiku-5-5` and `codex/gpt-6-luna`. The cache establishes only what was previously discovered, not current availability or whether effort actually takes effect.
 
-**接入进度**：policy-v2 已接入当时网关的精确 provider/model；Claude/GPT 前缀识别能力家族，其他模型只允许显式选用并从当前目录读取 defaultEffort（两维显式时只验证）。没有自动能力槽时停止，不猜、不回退本地入口。旧策略目录不变；已绑定子会话切回 legacy 后仍使用独立目录恢复。190 项测试与 fake-adapter 官方工具全宿主恢复通过，尚未执行真实网关模型调用。网关插件是已配置模型入口，不修改其源码或上游。
+**Integration progress**: policy-v2 supports the gateway's exact provider/model pairs. Claude/GPT prefixes identify capability families. Other models must be explicitly selected, with `defaultEffort` read from the current catalog (if both dimensions are explicit, only validation is needed). If there is no automatic capability slot, stop; do not guess or fall back to a local route. The legacy catalog is unchanged. Bound child sessions still restore using the separate catalog after switching back to legacy. 190 tests and full host recovery through official tools with a fake adapter passed; no actual gateway model calls had been made at this stage. The gateway plugin is an already configured model entry point; neither its source nor its upstream is modified.
 
-## 最小可执行方案
+## Minimum viable comparison
 
-- 固定一个 provider，避免首轮同时混入跨 provider 与 fork 变量；只测官方 ordinary fresh，主组织/验收角色固定。
-- 两个策略：默认 legacy 与显式 policy-v2；每个策略对同样的 6 个合成、独立验收任务执行一次，总计初始 12 个子运行。
-- 任务三类各 2 个：有确定 validator 的机械修改、需要定位根因的调查修复、需约束推理的分析。先写 fixture、测试/验收 oracle，再执行；一半用于开发、一半冻结为 holdout，不因结果修改预期。
-- 每个运行最多一次由主 Agent 明确决定的返工，额外运行也计预算，故最多 24 个子运行。禁止路由器自动升级、自动重试和失败后偷偷换模型。
-- provider 模型与 effort 必须先从当前官方目录/允许列表解析并确认，报告完全展开后的模型 ID，不能只写 Haiku/Sol 等别名。现在不假定任何真实 adapter 可用，也不触碰 subscriptions/MANUAL adapter。
-- 准确模型列表、每模型调用次数、输入/输出上限、美元费用或订阅额度上限必须在执行前提交用户确认。无法获得可约束费用的官方模型入口则停止，不自建兼容 adapter。
+- Fix one provider so the first round does not mix cross-provider and fork variables. Test only the official ordinary fresh path, with the main orchestration and acceptance role fixed.
+- Compare the default legacy policy with explicit policy-v2. Run each once on the same 6 synthetic tasks with independent acceptance checks, for 12 initial child runs.
+- Use 2 tasks in each of 3 categories: mechanical changes with deterministic validators, investigative fixes requiring root-cause diagnosis, and analyses requiring reasoning under constraints. Write fixtures, tests, and acceptance oracles first. Use half for development and freeze half as holdout; do not revise expectations based on results.
+- Allow at most one rework attempt per run, explicitly decided by the main agent. Additional runs count toward the budget, for a maximum of 24 child runs. The router must not escalate or retry automatically, or silently switch models after failure.
+- Resolve and confirm provider models and effort against the current official catalog and allowlist first. Report the fully qualified model IDs, not just aliases such as Haiku or Sol. Do not assume any real adapter is available or touch the subscriptions/MANUAL adapter.
+- Confirm the exact model list, calls per model, input/output limits, and dollar or subscription limits with the user before running. If no official model entry point can bound costs, stop rather than creating a compatibility adapter.
 
-## 指标
+## Metrics
 
-每个任务记录：独立验收是否通过、初次/最终通过、返工原因/次数、分类调用耗时与usage、子执行与验收总耗时、可用的实际usage/成本、基础设施错误。缺失字段记 unknown，不记 0；订阅usage不等同美元API价格。
+For each task, record whether independent acceptance passed, whether it passed initially or eventually, why and how often it was reworked, classification latency and usage, total child execution and acceptance time, actual usage and cost when available, and infrastructure errors. Mark missing fields unknown, not 0. Subscription usage is not equivalent to dollar-denominated API pricing.
 
-以包含返工与验收的总成本/总耗时比较，不能只比较首次选中轻模型。小样本只用于发现明显回归，不据此声称统计最优。是否默认推广需要单独批准。
+Compare total cost and elapsed time, including rework and acceptance, rather than just whether a lighter model was picked first. Use the small sample to uncover clear regressions, not to claim statistical optimality. Making the strategy the default requires separate approval.
 
-## 不包含
+## Out of scope
 
-部署、发布、GUI现场验证、fork兼容、真实业务数据/会话外发、扩大provider适配层、自动重试系统。通过后再申请单会话 opt-in 现场试运行，不默认全局启用。
+Deployment, release, live GUI verification, fork compatibility, transmission of real business data or session contents, expanding the provider adapter layer, and automated retries. After the comparison passes, request approval for a live single-session opt-in trial rather than enabling it globally by default.

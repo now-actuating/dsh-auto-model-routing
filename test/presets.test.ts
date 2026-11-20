@@ -7,7 +7,7 @@ import oracle from './fixtures/routing-oracle-0.4.2.json' with { type: 'json' }
 const pkg = resolve(import.meta.dirname, '..')
 const sha = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex')
 
-it('spec Scenario "内置预设满足注册表约束"', async () => {
+it('spec Scenario "Built-in presets satisfy registry constraints"', async () => {
   const { PRESETS, DEFAULT_PRESET_ID } = await import('../src/presets/index.js')
   expect(PRESETS.map(p => p.id)).toEqual(['reasoning-depth', 'effort-as-verification'])
   expect(PRESETS.find(p => p.id === 'effort-as-verification')?.context).toEqual(['execution'])
@@ -23,14 +23,14 @@ it('spec Scenario "内置预设满足注册表约束"', async () => {
     expect(Object.keys(p.rubric.depth.criteria).sort()).toEqual(['baseline', 'higher', 'lower'])
     for (const c of [...Object.values(p.rubric.capability.criteria), ...Object.values(p.rubric.depth.criteria)]) expect(nonEmpty(c)).toBe(true)
     expect(p.context.every(c => c === 'execution')).toBe(true)
-    for (const text of [p.title, p.summary, p.evidence]) { expect(nonEmpty(text.zh)).toBe(true); expect(nonEmpty(text.en)).toBe(true) }
+    for (const text of [p.title, p.summary, p.evidence]) expect(nonEmpty(text)).toBe(true)
     expect(p.sources.length).toBeGreaterThan(0)
     for (const s of p.sources) { expect(s.url.startsWith('https://')).toBe(true); expect(s.date).toMatch(/^\d{4}-\d{2}-\d{2}$/) }
   }
   expect(new Set(PRESETS.map(p => p.id)).size).toBe(PRESETS.length)
 })
 
-it('spec Scenario "约束检查能发现不合格预设"', async () => {
+it('spec Scenario "Validation rejects invalid presets"', async () => {
   const { PRESETS, presetIssues } = await import('../src/presets/index.js')
   const base = PRESETS[0]!
   const withRubric = (id: string, edit: (r: any) => void) => { const rubric = structuredClone(base.rubric) as any; edit(rubric); return { ...base, id, rubric } }
@@ -72,14 +72,14 @@ function lockDrift(entries: readonly LockEntry[], lock: typeof LOCK): string[] {
 }
 const entriesOf = async () => (await import('../src/presets/index.js')).PRESETS.map(p => ({ id: p.id, rubricBytes: readFileSync(join(pkg, 'src/presets', p.id, 'rubric.json')), context: p.context }))
 
-it('spec Scenario "内置预设与锁定表一致"', async () => {
+it('spec Scenario "Built-in presets match the lock table"', async () => {
   const entries = await entriesOf()
   expect(lockDrift(entries, LOCK)).toEqual([])
   expect(LOCK['reasoning-depth']!.rubricSha256).toBe(oracle.rubricSha256)
   expect(Object.keys(LOCK).sort()).toEqual(entries.map(e => e.id).sort())
 })
 
-it('spec Scenario "内容漂移使锁定测试失败"', async () => {
+it('spec Scenario "The lock check detects content drift"', async () => {
   const entries = await entriesOf()
   const tampered = entries.map(e => e.id === 'reasoning-depth' ? { ...e, rubricBytes: Buffer.concat([e.rubricBytes, Buffer.from(' ')]) } : e)
   expect(lockDrift(tampered, LOCK).some(i => i.includes('reasoning-depth') && i.includes('rubric'))).toBe(true)
@@ -88,10 +88,10 @@ it('spec Scenario "内容漂移使锁定测试失败"', async () => {
   expect(lockDrift(entries.map(e => e === target ? { ...e, context: [] } : e), LOCK).some(i => i.includes(target.id) && i.includes('context'))).toBe(true)
   const readme = join(pkg, 'docs/presets/README.md')
   expect(existsSync(readme)).toBe(true)
-  expect(readFileSync(readme, 'utf8')).toContain('只能追加新 id')
+  expect(readFileSync(readme, 'utf8')).toContain('only append new ids')
 })
 
-it('spec Scenario "新预设文本含关键分界"', async () => {
+it('spec Scenario "The new preset describes the key distinctions"', async () => {
   const p = (await import('../src/presets/index.js')).resolvePreset('effort-as-verification')
   expect(p.id).toBe('effort-as-verification')
   const r = JSON.parse(readFileSync(join(pkg, 'src/presets/effort-as-verification/rubric.json'), 'utf8'))
@@ -104,15 +104,15 @@ it('spec Scenario "新预设文本含关键分界"', async () => {
   expect(r.depth.criteria.higher).toContain('review')
   expect(r.depth.criteria.lower).toContain('brainstorming')
   expect(r.capability.instructions).toContain('wrong approach')
-  expect(p.evidence.en).toContain('GPT')
+  expect(p.evidence).toContain('GPT')
 })
 
-it('spec Scenario "缺省预设与变更前规则逐字节相同"', () => {
+it('spec Scenario "The default preset is byte-identical to the previous rules"', () => {
   expect(sha(join(pkg, 'src/presets/reasoning-depth/rubric.json'))).toBe(oracle.rubricSha256)
   expect(existsSync(join(pkg, 'src/rubric.json'))).toBe(false)
 })
 
-it('spec Scenario "每个内置预设都有文档"', async () => {
+it('spec Scenario "Every built-in preset is documented"', async () => {
   const { PRESETS } = await import('../src/presets/index.js')
   const missing = PRESETS.map(p => `docs/presets/${p.id}.md`).filter(f => !existsSync(join(pkg, f)))
   expect(missing).toEqual([])

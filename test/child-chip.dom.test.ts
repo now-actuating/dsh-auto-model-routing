@@ -12,7 +12,7 @@ afterEach(() => { act(() => root.unmount()); host.remove(); vi.useRealTimers() }
 
 const flush = async (ms: number) => { await act(async () => { await vi.advanceTimersByTimeAsync(ms) }) }
 
-it('spec Scenario "子会话不渲染芯片且停止轮询"', async () => {
+it('spec Scenario "Child sessions do not render the chip and stop polling"', async () => {
   const calls: Record<string, number> = {}
   const rpc = { call: async (_channel: string, _endpoint: string, payload: { sessionId: string }) => {
     calls[payload.sessionId] = (calls[payload.sessionId] ?? 0) + 1
@@ -28,7 +28,7 @@ it('spec Scenario "子会话不渲染芯片且停止轮询"', async () => {
   expect(calls.S).toBeGreaterThanOrEqual(2)
 })
 
-it('spec Scenario "状态读取失败的普通会话保持原行为"', async () => {
+it('spec Scenario "Ordinary sessions retain their behavior when reading state fails"', async () => {
   let fail = true, count = 0
   const rpc = { call: async () => { count++; if (fail) throw new Error('offline'); return { ok: true, value: { mode: 'MANUAL' } } } }
   await act(async () => { root.render(createElement(RoutingChip, { sessionId: 'S', rpc: rpc as never })) })

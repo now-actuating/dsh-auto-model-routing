@@ -5,7 +5,7 @@ import type { SettingsUi } from './settings-ui.js'
 import { DECISION_SERVICES, resolveDecisionService, type DecisionProvider } from '../decision-service.js'
 import type { JevCategory } from '../hints.js'
 import type { DecisionModelList } from '../decision-models.js'
-import { StrategyDetails, localized } from './strategy-details.js'
+import { StrategyDetails } from './strategy-details.js'
 import { PRESETS, resolvePreset } from '../presets/index.js'
 import { CATEGORY_HINT_KEYS, SERVICE_LABEL_KEYS, t } from './locales.js'
 
@@ -99,7 +99,7 @@ export function RoutingSettings({ rpc, ui }: { rpc: Rpc; ui: SettingsUi }) {
       try { nextView = await request(rpc, 'saveSettings', patch); setPatch({}); results.push(t('settingsSaved')) }
       catch (error) { results.push(t('settingsNotSaved')); setFailed(true); setSaveIssues((error as { issues?: SettingsIssue[] }).issues ?? []) }
     }
-    setView(nextView); setMessage(results.join('；')); setSaving(false)
+    setView(nextView); setMessage(results.join('; ')); setSaving(false)
   }
   const keyState = !view.key.available ? t('keyUnavailable') : !view.key.writable ? t('keyFromEnv') : view.key.configured ? t('keyConfigured') : t('keyUnconfigured')
   const keyHint = !view.key.available ? t('keyUnavailableHint') : !view.key.writable ? t('keyEnvHint', { ref: DECISION_SERVICES[serviceProvider].credential }) : view.key.configured ? t('keyStoredHint') : t('keyMissingHint')
@@ -156,10 +156,10 @@ export function RoutingSettings({ rpc, ui }: { rpc: Rpc; ui: SettingsUi }) {
         h('p', null, t('autoIntro')),
         h('div', { className: 'amr-settings-row' }, h('div', null, t('preset'), h('p', null, t('presetHint'))),
           h(ui.Menu, { open: presetMenu, portal: true, side: 'bottom', selectedId: preset.id, onClose: () => setPresetMenu(false),
-            items: PRESETS.map((p, i) => ({ id: p.id, label: i === 0 ? `${localized(p.title)} · ${t('presetDefault')}` : localized(p.title) })),
+            items: PRESETS.map((p, i) => ({ id: p.id, label: i === 0 ? `${p.title} · ${t('presetDefault')}` : p.title })),
             onSelect: id => { if (!PRESETS.some(p => p.id === id)) return; setPatch(old => ({ ...old, preset: id })); setPresetMenu(false) },
-            anchor: h('button', { type: 'button', className: 'amr-service-trigger', 'aria-label': t('preset'), 'aria-haspopup': 'menu', 'aria-expanded': presetMenu, onClick: () => setPresetMenu(!presetMenu) }, h('span', null, localized(preset.title)), h(ui.IconChevronDownOutlineRegular, { size: 14 })) })),
-        h('p', null, localized(preset.summary)),
+            anchor: h('button', { type: 'button', className: 'amr-service-trigger', 'aria-label': t('preset'), 'aria-haspopup': 'menu', 'aria-expanded': presetMenu, onClick: () => setPresetMenu(!presetMenu) }, h('span', null, preset.title), h(ui.IconChevronDownOutlineRegular, { size: 14 })) })),
+        h('p', null, preset.summary),
         h('p', null, t('autoCatalogNote')), h(StrategyDetails, { preset })),
       ...[...conflicts, ...saveIssues].map(issue => h('p', { key: issue.path, role: 'status', className: 'amr-settings-error' }, `${issue.path}: ${issue.message}`)),
     ),

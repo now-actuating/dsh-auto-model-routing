@@ -1,56 +1,56 @@
-# AUTO routing：核心诉求与待补差距
+# AUTO routing: Core requirements and remaining gaps
 
-记录时间：2026-10-24（Asia/Shanghai）。状态：需求回顾与调研，不是已批准实施方案；不修改现行运行规范、0.3.0 默认行为或生产配置。
+Recorded on 2026-10-24 (Asia/Shanghai). Status: Requirements review and research, not an approved implementation plan. This does not change the current operating specification, the 0.3.0 default behavior, or production configuration.
 
-## 用户核心诉求（后续方案的验收方向）
+## Core user requirements (acceptance goals for future proposals)
 
-1. 决策配置遵循 Anthropic 与 OpenAI 对具体模型用途、effort、委派和成本优化的官方建议；区分官方支持能力、官方推荐和本项目经验策略，不将自定义四档表称为官方标准。
-2. 主会话保留用户选择的 provider/model，只调整 effort。保留主模型的理由包括行为/上下文连续性与减少缓存扰动；不承诺改变 effort 一定保留缓存，须按实际适配器核验。
-3. 强主模型承担理解、拆解、协调与验收；适宜的执行任务交给较轻量子模型。不因缺乏跨模型评估而简单退回“所有子会话默认使用强主模型”，也不把所有小事都委派。
-4. AUTO 的目标是质量、速度、总开销的平衡，避免一律最高或最低配置。总开销包括判档、上下文移交、worker 执行、主模型复核与失败重试。
-5. 用户记得曾要求“主模型让简单子模型干活”：当前环境级指令确有委派场景指导，但不是所有简单任务强制委派；后续应补齐与独立插件一致的执行边界。
+1. Routing decisions and configuration should follow Anthropic and OpenAI's official guidance on model-specific use cases, effort, delegation, and cost optimization. Distinguish officially supported capabilities, official recommendations, and policies based on this project's experience. Do not call the custom four-tier table an official standard.
+2. Keep the user-selected provider/model in the main session and adjust only effort. Reasons for retaining the main model include continuity of behavior and context and less disruption to caching. An effort change is not guaranteed to preserve the cache; verify this against the actual adapter.
+3. A strong main model handles understanding, decomposition, coordination, and verification. Delegate suitable execution tasks to lighter child models. Do not simply revert to having all child sessions use the strong main model by default because cross-model evaluation is lacking, and do not delegate every small task either.
+4. AUTO aims to balance quality, speed, and total cost rather than always using the highest or lowest configuration. Total cost includes classification, handing off context, worker execution, verification by the main model, and retries after failure.
+5. The user recalls asking for the main model to let simpler child models do the work. The current environment-level instructions do provide guidance on when to delegate, but do not mandate delegating every simple task. Future work should clarify when to delegate in a way that also applies to the standalone plugin.
 
-## 当前证据
+## Current evidence
 
-- 当前规范：[主仓规范](https://github.com/prgrmrwy/ohmydsh/blob/main/openspec/specs/auto-model-routing/spec.md)（本节是历史调研快照，不代表当前默认策略），固定主模型、共享四档 rubric、childRoutes 与派发规则。
-- 默认主模型起点与偏移：../src/effort.ts；Claude 子表 Haiku/Sonnet/Opus/Opus；GPT 子表 Luna/Sol/Sol/Sol。
-- 子工具：../src/subagent-tool.ts，单独判断子任务；指定模型时只调 effort；校验目录与允许列表。
-- 包内指导：../skills/subagent-model-routing/SKILL.md，主要约束选模、调用与复用；是否派发的场景主要位于 [主仓环境指令](https://github.com/prgrmrwy/ohmydsh/blob/main/instructions/dsh-home.md)（可选背景，不是插件加载依赖）。历史提交 14d68627（2026-10-22）已明确加入较大编码、独立复核、大量探索、可并行工作的派发规则，以及小修复/讨论不派发；这确认用户记忆中的委派要求确实曾落地，但不是所有简单任务强制派发。
-- 来源与评估范围：../eval/README.md，现有回归是判档一致性，不是最终任务质量/速度/费用基准。
+- Current specification: [Main repository specification](https://github.com/prgrmrwy/ohmydsh/blob/main/openspec/specs/auto-model-routing/spec.md) (this section is a historical research snapshot and does not describe the current default policy). It specifies a fixed main model, a shared four-tier rubric, childRoutes, and dispatch rules.
+- Default starting points and offsets for the main model: [effort.ts](../src/effort.ts). The Claude child table uses Haiku/Sonnet/Opus/Opus; the GPT child table uses Luna/Sol/Sol/Sol.
+- Subagent tool: [subagent-tool.ts](../src/subagent-tool.ts). It judges child tasks separately, adjusts only effort when a model is specified, and validates directories and the allowlist.
+- In-package guidance: [SKILL.md](../skills/subagent-model-routing/SKILL.md) mainly governs model selection, invocation, and reuse. Guidance on when to dispatch resides mainly in the [main repository's environment instructions](https://github.com/prgrmrwy/ohmydsh/blob/main/instructions/dsh-home.md), which are optional context, not a requirement for loading the plugin. Historical commit 14d68627 (2026-10-22) explicitly added rules to dispatch larger coding tasks, independent reviews, extensive exploration, and work that can proceed in parallel, and not to dispatch small fixes or discussions. This confirms that the delegation requirement the user recalls was implemented, but delegation was not mandatory for every simple task.
+- Sources and evaluation scope: [eval/README.md](../eval/README.md). The existing regression suite measures tier consistency, not final task quality, speed, or cost.
 
-## Gap 与建议（待调研校准，不是实施授权）
+## Gaps and recommendations (pending research and calibration, not authorization to implement)
 
-| Gap | 影响 | 建议与验证 |
+| Gap | Impact | Recommendation and validation |
 |---|---|---|
-| 同一难度标签同时决定模型能力档与effort | simple 可能同时降到小模型与低effort，不能由“强模型轻松做”推导“小模型低预算可靠做” | 保留轻量worker；分开能力适配与推理预算，以所选模型官方起点为基线，再验证偏移；不急于增加第二次网络判档 |
-| 固定model被误当作缓存保持保证 | Claude顶层effort可能影响前缀，省下输出费用但新增缓存写入 | 检查当前Claude/GPT适配器与官方文档；记录cache read/write和总延迟；比较稳定effort与逐轮effort策略 |
-| 缺少是否值得委派的成本边界 | 一行任务派发可能比主模型直接做更慢更贵 | 主Agent依据任务独立性、工作量、移交成本与可验证性决定派发；不要“simple必委派” |
-| 独立插件与个人环境指导不完全相同 | 安装工具/skill不保证强主轻子的工作方式真正执行 | 明确包内最小派发/复核指导及尽力而为边界，真实Host验证，不宣称强制拦截 |
-| 缺少结果验收与质量失败升级闭环 | 弱配置可能持续重试，最终成本反增 | 区分工具/网络故障与推理失败；定义验收、有限重试与能力升级策略，尊重用户固定模型约束 |
-| 官方推荐与经验配置边界不清 | 默认表随模型更新失效，用户误以为有官方保障 | 维护版本化来源、适用任务、支持effort、推荐起点；将自行推导明确标注为待评估预设 |
-| 没有端到端收益证据 | 分类准确不等于任务成功或省钱 | 同任务比较固定高配置、固定推荐配置、当前AUTO及候选AUTO；记录独立通过率、全链路耗时/费用与重试次数 |
+| The same difficulty label determines both the model capability tier and effort | A `simple` task may be assigned both a smaller model and low effort. The fact that a strong model does it easily does not imply a small model does it reliably on a low budget | Keep lightweight workers. Separate capability matching from reasoning budget, start from the selected model's official recommendation, and validate offsets. Do not rush to add a second network call for classification |
+| Keeping the model fixed is mistaken for a guarantee that the cache is preserved | Top-level Claude effort may affect the prefix. Savings on output can be offset by new cache writes | Check the current Claude/GPT adapters and official documentation. Record cache reads, writes, and total latency, and compare stable effort with per-turn effort |
+| No cost threshold for when delegation is worthwhile | Dispatching a one-line task may be slower and more expensive than having the main model do it directly | The main Agent should decide whether to dispatch based on task independence, workload, handoff cost, and verifiability. Do not require delegation just because a task is `simple` |
+| Standalone plugin guidance does not fully match personal environment guidance | Installing the tool or skill does not ensure users actually get a strong lead with lighter workers | Specify minimal in-package dispatch and verification guidance and the limits of best-effort behavior. Verify on the actual Host and do not claim it can enforce the rules by intercepting calls |
+| No closed loop for verifying outcomes and escalating quality failures | A weak configuration may keep retrying and ultimately cost more | Distinguish tool/network failures from reasoning failures. Define acceptance criteria, bounded retries, and when to escalate capabilities, while respecting the user's fixed-model constraint |
+| The boundary between official recommendations and experience-based configurations is unclear | The default table can become outdated as models change, and users may mistake it for an official guarantee | Maintain versioned sources, applicable tasks, supported effort levels, and recommended starting points. Explicitly label internally derived settings as presets pending evaluation |
+| No evidence of end-to-end gains | Classification accuracy does not imply task success or cost savings | Compare fixed high settings, fixed recommended settings, current AUTO, and candidate AUTO on the same tasks. Record independent pass rates, end-to-end time and cost, and retry counts |
 
-## 修订后的优先级与职责边界
+## Revised priorities and division of responsibilities
 
-以用户后续确认的 [策略与推进计划](routing-strategy-plan.md) 为准：
+Follow the [strategy and rollout plan](routing-strategy-plan.md) subsequently confirmed by the user:
 
-1. 先明确该怎么 route，再把决策说清楚交给 Jev；不能让现有四档输出反向定义策略。
-2. Agent 保留拆解、派发、协作、验收权；AUTO 补齐资源选择与实际生效；Jev 负责有限范围的能力/深度判断。
-3. 分开子模型能力与 effort，保留强主轻子；不因轻量模型而自动再次降低其 effort。
-4. 补齐创建路径 gap：当前 subagent 暴露模型与 effort 参数，fork/teammate 未暴露。返回推荐不等于成功路由，须检查正式接入点并验证实际请求；不能把主 Agent 自选当作所有路径都可用的替代方案。
-5. 分别验证策略质量、Jev 判断忠实度、宿主接入正确性。
+1. Define how routing should work first, then explain the decision criteria clearly to Jev. Do not let the existing four-tier output dictate the policy.
+2. The Agent retains responsibility for decomposition, dispatch, collaboration, and verification. AUTO selects resources and applies the selection. Jev makes bounded judgments about capability and depth.
+3. Separate child-model capability from effort and retain a strong lead with lighter workers. Do not automatically lower effort again because the model is lighter.
+4. Close the gap between creation paths: subagent currently exposes model and effort parameters, while fork/teammate do not. Returning a recommendation does not mean routing succeeded. Check the official integration points and verify the actual requests. Do not assume that letting the main Agent choose is a viable alternative on every path.
+5. Verify policy quality, the fidelity of Jev's judgments, and the correctness of host integration separately.
 
-本轮按用户范围约定排除 dsh-plugin-subscriptions 与 MANUAL 改造，缓存/适配器实验不再是前置事项。上表与下节缓存内容保留为历史证据和评估限制，不构成本轮实施要求，也不宣称固定模型必保缓存。此范围约定不表示订阅适配器在技术上只运行于 MANUAL。
+As agreed with the user, this round excludes changes to dsh-plugin-subscriptions and MANUAL. Cache and adapter experiments are no longer prerequisites. The caching material in the table above and the section below remains as historical evidence and evaluation limitations. It is not an implementation requirement for this round and does not claim that fixing the model necessarily preserves the cache. This scope agreement does not mean that subscription adapters technically run only in MANUAL.
 
-## 已独立核验的缓存证据
+## Independently verified caching evidence
 
-- [OpenAI Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching.md)（2026-10-24读取）：request-level reasoning.effort 可以改变模型侧指令；支持的 GPT-6+ 模型通过追加 configuration_update 并保持顶层原值来保留早先前缀。这是 API 能力，不证明当前 DSH/订阅适配器已支持。
-- [Magpie rules.go](https://github.com/yetone/magpie/blob/main/internal/gateway/rules.go)（2026-10-24读取 main，可变引用）：同回合保持决策；keepsEffort 在缓存仍暖时阻止降 effort，但允许升档，缓存过冷或上下文缩小至一半以下时允许降档；区分 Pick 与 Wanted，注释说明支持 effort updates 的路径可使用 Wanted。项目注释中的缓存命中观测是上游自述，不是本项目复现结果。它是可借鉴的缓存策略，不能直接抄作所有 provider 的普遍规律。Sol 后续对固定提交 f3eb92924e56605860f6a85a3449247c26c0bd90 的检查指出，effort_update.go 的更新通路为 MAGPIE_EFFORT_UPDATES=on 显式启用的 preview，默认关闭，限 GPT-6/OpenAI或ChatGPT账户/Responses；不能将源码出现 takesEffortUpdates 解读为所有部署默认具备缓存保持能力。
+- [OpenAI Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching.md) (read 2026-10-24): Request-level reasoning.effort can change model-side instructions. Supported GPT-6+ models preserve the earlier prefix by appending configuration_update and leaving the original top-level value unchanged. This is an API capability and does not prove that the current DSH/subscription adapter supports it.
+- [Magpie rules.go](https://github.com/yetone/magpie/blob/main/internal/gateway/rules.go) (read 2026-10-24 from main, a mutable reference): The decision is retained within a turn. keepsEffort prevents lowering effort while the cache is still warm but allows increases. It allows decreases when the cache becomes too cold or the context shrinks to less than half its previous size. Pick and Wanted are distinct, and comments say that paths supporting effort updates can use Wanted. Cache-hit observations in the project comments are upstream self-reports and have not been reproduced by this project. The caching policy is worth adapting, but cannot be copied as a universal rule for all providers. Sol's later review of pinned commit f3eb92924e56605860f6a85a3449247c26c0bd90 found that the update path in effort_update.go is a preview explicitly enabled by MAGPIE_EFFORT_UPDATES=on. It is off by default and limited to GPT-6, OpenAI or ChatGPT accounts, and Responses. The presence of takesEffortUpdates in the source does not mean all deployments preserve the cache by default.
 
-## 官方强主轻子的适用边界
+## Where official guidance on strong leads and lighter workers applies
 
-[Anthropic 多智能体研究系统](https://www.anthropic.com/research/multi-agent-research-system)（2026-10-24全文读取）描述 Opus 4 lead + Sonnet 4 workers，在其内部研究评估优于单 Opus 4；这是特定研究系统结果，不是本项目收益证明，也不是所有 coding 都适合多agent的结论。文章强调并行独立方向、上下文压缩、清晰任务边界与最终结果评估；同时指出多agent显著增加token，编码任务往往比研究更难并行。应采用其编排与验收原则，不直接复制旧代模型组合或收益百分比。
+[Anthropic's multi-agent research system](https://www.anthropic.com/research/multi-agent-research-system) (full text read on 2026-10-24) describes an Opus 4 lead with Sonnet 4 workers outperforming a single Opus 4 in Anthropic's internal research evaluation. That result applies to a specific research system: it neither demonstrates gains for this project nor shows that multi-agent setups suit all coding tasks. The article emphasizes running independent lines of work in parallel, compressing context, setting clear task boundaries, and evaluating final outcomes. It also notes that multiple agents substantially increase token use and that coding tasks are often harder to parallelize than research. Adopt its orchestration and verification principles rather than copying older model combinations or gain percentages directly.
 
-## 外部调研
+## External research
 
-已由 gpt-6.1-sol/high 完成官方指引、维护/热度较高社区路由与 yetone/magpie 策略调研，主会话复核了OpenAI缓存、Anthropic研究编排、LiteLLM评估与Magpie更新路径。详见 [调研记录](routing-community-research-2026-10-24.md)。结果区分官方文档、代码事实、项目自述与未经复现的效果声明；热度不等于效果，不把调研建议直接写为现行spec。
+The gpt-6.1-sol/high subagent researched official guidance, well-maintained or popular community routers, and yetone/magpie's policy. The main session cross-checked OpenAI caching, Anthropic research orchestration, LiteLLM evaluation, and Magpie's update path. See the [research notes](routing-community-research-2026-10-24.md) for details. The findings distinguish official documentation, facts established by the code, statements from projects, and unreproduced claims about results. Popularity does not establish effectiveness, and research recommendations are not incorporated directly into the current specification.

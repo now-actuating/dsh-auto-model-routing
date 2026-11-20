@@ -330,19 +330,19 @@
       "model": "CLAUDE-OPUS-5-5",
       "depth": "lower",
       "defaultEffort": null,
-      "error": "unsupported：模型缺少可验证的默认 effort"
+      "error": "unsupported: the model has no verifiable default effort"
     },
     {
       "model": "CLAUDE-OPUS-5-5",
       "depth": "baseline",
       "defaultEffort": null,
-      "error": "unsupported：模型缺少可验证的默认 effort"
+      "error": "unsupported: the model has no verifiable default effort"
     },
     {
       "model": "CLAUDE-OPUS-5-5",
       "depth": "higher",
       "defaultEffort": null,
-      "error": "unsupported：模型缺少可验证的默认 effort"
+      "error": "unsupported: the model has no verifiable default effort"
     },
     {
       "model": "CLAUDE-OPUS-5-5",
@@ -366,19 +366,19 @@
       "model": "claude-unknown",
       "depth": "lower",
       "defaultEffort": null,
-      "error": "unsupported：模型缺少可验证的默认 effort"
+      "error": "unsupported: the model has no verifiable default effort"
     },
     {
       "model": "claude-unknown",
       "depth": "baseline",
       "defaultEffort": null,
-      "error": "unsupported：模型缺少可验证的默认 effort"
+      "error": "unsupported: the model has no verifiable default effort"
     },
     {
       "model": "claude-unknown",
       "depth": "higher",
       "defaultEffort": null,
-      "error": "unsupported：模型缺少可验证的默认 effort"
+      "error": "unsupported: the model has no verifiable default effort"
     },
     {
       "model": "claude-unknown",
@@ -402,19 +402,19 @@
       "model": "gpt-7",
       "depth": "lower",
       "defaultEffort": null,
-      "error": "unsupported：模型缺少可验证的默认 effort"
+      "error": "unsupported: the model has no verifiable default effort"
     },
     {
       "model": "gpt-7",
       "depth": "baseline",
       "defaultEffort": null,
-      "error": "unsupported：模型缺少可验证的默认 effort"
+      "error": "unsupported: the model has no verifiable default effort"
     },
     {
       "model": "gpt-7",
       "depth": "higher",
       "defaultEffort": null,
-      "error": "unsupported：模型缺少可验证的默认 effort"
+      "error": "unsupported: the model has no verifiable default effort"
     },
     {
       "model": "gpt-7",
@@ -500,7 +500,7 @@
       ],
       "cap": "xhigh",
       "defaultEffort": "max",
-      "error": "模型推荐 effort 起点不可验证，请先配置受支持模型"
+      "error": "Cannot verify the recommended starting effort; configure a supported model first"
     },
     {
       "model": "claude-opus-5-5",
@@ -510,7 +510,7 @@
       ],
       "cap": "xhigh",
       "defaultEffort": null,
-      "error": "模型推荐 effort 起点不可验证，请先配置受支持模型"
+      "error": "Cannot verify the recommended starting effort; configure a supported model first"
     }
   ],
   "childRoutes": [

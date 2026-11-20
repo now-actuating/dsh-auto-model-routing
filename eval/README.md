@@ -1,7 +1,5 @@
 # Jev rule check
 
-[中文](README.zh.md)
-
 `cases.json` holds 18 synthetic tasks (development and holdout splits) with independently written expected capability and depth answers for the [judgement presets](../docs/presets/README.md). `capability`/`depth` are the shared expectations; `depthFor` overrides the depth expectation per preset id; `execution` is `main` or `delegated` (default) and decides whether the state is built like a first main turn or a subtask.
 
 `live.mjs` sends them to the real OpenRouter decision endpoint with a hard budget (at most 20 calls and $0.10 per run) and writes a local report without task text beyond the synthetic cases. It is a manual, paid check, not part of `npm test`:

@@ -60,7 +60,7 @@ export function settingsHost(ctx: Context, store: SettingsStore, decisionModels 
   const endpoint = async (operation: 'settings' | 'saveSettings' | 'setKey' | 'testDecision' | 'decisionModels', body: unknown): Promise<Response> => {
     if (operation === 'settings') return Response.json(await read())
     if (operation === 'decisionModels') {
-      if (body !== undefined && body !== null && (typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => k !== 'refresh') || ('refresh' in body && typeof body.refresh !== 'boolean'))) return Response.json({ error: '无效的模型列表请求' }, { status: 400 })
+      if (body !== undefined && body !== null && (typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => k !== 'refresh') || ('refresh' in body && typeof body.refresh !== 'boolean'))) return Response.json({ error: 'Invalid model list request' }, { status: 400 })
       return Response.json(await decisionModels(Boolean((body as { refresh?: boolean } | null | undefined)?.refresh)))
     }
     if (operation === 'testDecision') {
@@ -73,23 +73,23 @@ export function settingsHost(ctx: Context, store: SettingsStore, decisionModels 
       try { store.save(body); return Response.json(await read()) }
       catch (error) {
         if (error instanceof SettingsValidationError) return Response.json({ error: error.message, issues: error.issues }, { status: 400 })
-        return Response.json({ error: '无法保存自动模型路由设置' }, { status: 500 })
+        return Response.json({ error: 'Could not save auto model routing settings' }, { status: 500 })
       }
     }
     const service = credentials()
-    if (!service) return Response.json({ error: '凭据服务不可用' }, { status: 503 })
-    if (typeof body !== 'object' || body === null || Array.isArray(body) || Object.keys(body).some(k => !['value','provider'].includes(k)) || !('value' in body)) return Response.json({ error: '无效的凭据请求' }, { status: 400 })
+    if (!service) return Response.json({ error: 'The credential service is unavailable' }, { status: 503 })
+    if (typeof body !== 'object' || body === null || Array.isArray(body) || Object.keys(body).some(k => !['value','provider'].includes(k)) || !('value' in body)) return Response.json({ error: 'Invalid credential request' }, { status: 400 })
     const provider = 'provider' in body ? body.provider : 'openrouter'
-    if (typeof provider !== 'string' || !Object.hasOwn(DECISION_SERVICES, provider)) return Response.json({ error: '无效的服务商' }, { status: 400 })
+    if (typeof provider !== 'string' || !Object.hasOwn(DECISION_SERVICES, provider)) return Response.json({ error: 'Invalid service provider' }, { status: 400 })
     const ref = keyRef(provider as DecisionProvider)
     const value = body.value
-    if (value !== null && (typeof value !== 'string' || !value || value.length > 512 || /\s/.test(value))) return Response.json({ error: 'API key 必须为不含空白的非空字符串，且不超过 512 字符' }, { status: 400 })
+    if (value !== null && (typeof value !== 'string' || !value || value.length > 512 || /\s/.test(value))) return Response.json({ error: 'The API key must be non-empty, contain no whitespace, and be at most 512 characters' }, { status: 400 })
     try {
-      if (!(await service.describe(ref)).writable) return Response.json({ error: '该 key 来自启动环境，需先从启动环境移除并重启才能在此管理' }, { status: 409 })
+      if (!(await service.describe(ref)).writable) return Response.json({ error: 'This key comes from the launch environment. Remove it from that environment and restart before managing it here' }, { status: 409 })
       if (value === null) await service.unset(ref)
       else await service.set(ref, value as string)
       return Response.json({ key: await keyStatus(provider as DecisionProvider) })
-    } catch { return Response.json({ error: '无法更新 API key；请检查凭据服务与只读来源' }, { status: 500 }) }
+    } catch { return Response.json({ error: 'Could not update the API key; check the credential service and any read-only sources' }, { status: 500 }) }
   }
   return {
     catalog, read, endpoint,

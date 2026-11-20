@@ -8,7 +8,7 @@ import { closeHarness, depth, harness, lastAssistantId, SECRET } from './host-ha
 let cleanup: (() => Promise<void>) | undefined = closeHarness
 afterEach(async () => { await closeHarness() })
 
-it('spec Scenario "手动及新回合隔离"',async()=>{
+it('spec Scenario "Manual mode and new turns stay isolated"',async()=>{
  const h=await harness(json(200,{answers:{depth:{choice:'baseline'}}}),{answer:()=> 'synthetic reply'})
   await h.setMode('AUTO');await h.run('first user task')
  const ids=()=>h.agent.session.snapshotEvents().filter(e=>e.type==='assistant/message').map(e=>(e.data as any).message.id)
@@ -99,25 +99,25 @@ it('host_routes_and_rpc_envelope', async () => {
  expect(rpc).toMatchObject({ type: 'server-response', rpcId: 'probe-1', result: { ok: true } })
 })
 
-it('spec Scenario "步骤被拒时不请求 Jev"', async () => {
+it('spec Scenario "A rejected step does not call Jev"', async () => {
  let reject = true
  const h = await harness(depth('higher'), { reject: () => reject })
  await h.setMode('AUTO')
- await h.run('排查多个模块')
+ await h.run('Investigate several modules')
  expect(h.jev.bodies).toHaveLength(0)
  reject = false
- await h.run('排查多个模块')
+ await h.run('Investigate several modules')
  expect(h.jev.bodies).toHaveLength(1)
  expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
 })
 
-it('spec Scenario "等待期间切换模式丢弃结果"', async () => {
+it('spec Scenario "Switching modes while waiting discards the result"', async () => {
  for (const answer of [depth('higher'), json(402, {})]) {
   let release!: () => void
   const gate = new Promise<void>(done => { release = done })
   const h = await harness((req, res, body) => { void gate.then(() => answer(req, res, body)) })
   await h.setMode('AUTO')
-  const running = h.run('排查多个模块')
+  const running = h.run('Investigate several modules')
   await expect.poll(() => h.jev.bodies.length).toBe(1)
   await h.setMode('MANUAL')
   release()
@@ -130,13 +130,13 @@ it('spec Scenario "等待期间切换模式丢弃结果"', async () => {
  }
 })
 
-it('spec Scenario "停用后不再调用 Jev 且不改写"', async () => {
+it('spec Scenario "Disabled AUTO neither calls Jev nor rewrites the request"', async () => {
  const h = await harness(depth('higher'))
  await h.setMode('AUTO')
- await h.run('排查多个模块')
+ await h.run('Investigate several modules')
  expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
  h.jev.set(json(402, {}))
- await h.run('下一个任务')
+ await h.run('Next task')
  // No rewrite after the failure: the request carries whatever the official selection assembled. Since the previous AUTO
  // turn synced `high` to the official selection (0.2.2: selectModel records it on the agent), that is `high`, not the initial `medium`.
  expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
@@ -144,27 +144,27 @@ it('spec Scenario "停用后不再调用 Jev 且不改写"', async () => {
  expect(state).toMatchObject({ mode: 'MANUAL', disabled: { category: 'insufficient-credits' } })
  expect(state).not.toHaveProperty('restore')
  const sent = h.jev.bodies.length
- await h.run('再下一个')
+ await h.run('The task after that')
  expect(h.jev.bodies.length).toBe(sent)
  expect((await h.invoke('state', { sessionId: h.agent.id })).disabled?.category).toBe('insufficient-credits')
 })
-it('spec Scenario "用户重新点 AUTO 清除停用"', async () => {
+it('spec Scenario "Clicking AUTO again clears the disabled state"', async () => {
  const h = await harness(json(504, {}))
  await h.setMode('AUTO')
- await h.run('任务')
+ await h.run('Task')
  expect((await h.invoke('state', { sessionId: h.agent.id })).disabled?.category).toBe('unavailable')
- await h.run('完成复原')
+ await h.run('Finish restoring it')
  h.jev.set(depth('lower'))
  await h.setMode('AUTO')
  expect((await h.invoke('state', { sessionId: h.agent.id })).disabled).toBeUndefined()
- await h.run('小改动')
+ await h.run('A small change')
  expect(h.calls.at(-1)?.reasoningEffort).toBe('low')
 })
 
-it('spec Scenario "用户取消不是失败"', async () => {
+it('spec Scenario "User cancellation is not a failure"', async () => {
  const h = await harness(() => { /* hold */ })
  await h.setMode('AUTO')
- const running = h.run('排查多个模块')
+ const running = h.run('Investigate several modules')
  await expect.poll(() => h.jev.bodies.length).toBe(1)
  h.agent.cancel({ kind: 'user' })
  await running
@@ -172,14 +172,14 @@ it('spec Scenario "用户取消不是失败"', async () => {
  expect(state.mode).toBe('AUTO')
  expect(state.disabled).toBeUndefined()
  h.jev.set(depth('baseline'))
- await h.run('再试')
+ await h.run('Try again')
  expect(h.jev.bodies).toHaveLength(2)
 })
 
-it('spec Scenario "凭据与响应体不泄漏"', async () => {
+it('spec Scenario "Credentials and response bodies are not exposed"', async () => {
  const h = await harness(json(401, { error: { message: 'SECRET-BODY' } }))
  await h.setMode('AUTO')
- await h.run('任务')
+ await h.run('Task')
  const text = JSON.stringify(await h.invoke('state', { sessionId: h.agent.id }))
  const dir = join(h.home, 'state/auto-model-routing/sessions')
  const disk = readdirSync(dir).map(f => readFileSync(join(dir, f), 'utf8')).join('\n')
@@ -190,7 +190,7 @@ it('spec Scenario "凭据与响应体不泄漏"', async () => {
 it('toast_switch_default_on_only_false_is_off', async () => {
  const h = await harness(depth('higher', { confidence: 0.9 }))
  await h.setMode('AUTO')
- await h.run('排查多个模块')
+ await h.run('Investigate several modules')
  // Missing file: on by default.
  expect(await h.invoke('state', { sessionId: h.agent.id })).toMatchObject({ decisionToast: true, decision: { source: 'main', confidence: 0.9 } })
  const dir = join(h.home, 'plugins/dsh-auto-model-routing'); mkdirSync(dir, { recursive: true })
@@ -205,7 +205,7 @@ it('toast_switch_default_on_only_false_is_off', async () => {
 it('failure produces no new decision and the switch only gates the hint (host)', async () => {
  const h = await harness(depth('higher', { confidence: 0.9 }))
  await h.setMode('AUTO')
- await h.run('排查多个模块')
+ await h.run('Investigate several modules')
  // Switch off: the latest decision is still returned (for the hover panel) but no hint is requested.
  h.toast(false)
  const off = await h.invoke('state', { sessionId: h.agent.id })
@@ -215,7 +215,7 @@ it('failure produces no new decision and the switch only gates the hint (host)',
  expect((await h.invoke('state', { sessionId: h.agent.id })).decisionToast).toBe(true)
  const before = (await h.invoke('state', { sessionId: h.agent.id })).decision.id
  h.jev.set(json(402, {}))
- await h.run('下一个任务')
+ await h.run('Next task')
  // A failed judgment produces no new decision (the session is now MANUAL and shows none).
  const after = await h.invoke('state', { sessionId: h.agent.id })
  expect(after.decision?.id ?? before).toBe(before)
@@ -225,20 +225,20 @@ it('failure produces no new decision and the switch only gates the hint (host)',
 it('auto_syncs_official_selection', async () => {
  const h = await harness(depth('higher'))
  await h.setMode('AUTO')
- await h.run('排查多个模块')
+ await h.run('Investigate several modules')
  expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
  expect(h.selections).toEqual([{ sessionId: h.agent.id, provider: 'test', model: 'claude-opus-5-5', reasoningEffort: 'high' }])
  // The same value is not pushed again; the official selection now carries it.
  h.selection.current = { provider: 'test', model: 'claude-opus-5-5', reasoningEffort: ReasoningEffortId('high') }
- await h.run('继续排查')
+ await h.run('Keep investigating')
  expect(h.selections).toHaveLength(1)
  // MANUAL never writes the selection.
- await h.setMode('MANUAL'); await h.run('再继续')
+ await h.setMode('MANUAL'); await h.run('Continue again')
  expect(h.selections).toHaveLength(1)
 })
 
 
-it('spec Scenario "凭据从存储读取且换 key 立即生效"', async () => {
+it('spec Scenario "Credentials come from storage and key changes take effect immediately"', async () => {
  const h = await harness(depth('lower'), { storedKey: 'key-A' })
  await h.setMode('AUTO'); await h.run('one')
  expect(h.jev.headers.at(-1)?.authorization).toBe('Bearer key-A')
@@ -280,7 +280,7 @@ it('default_auto_ignores_resume_clear_compact_and_subagents', async () => {
   expect(readdirSync(stateFiles)).toHaveLength(1)
  } finally { await child.dispose() }
 })
-it('spec Scenario "旧判档账本不再增长且标注参数被拒"', async () => {
+it('spec Scenario "The old judgment ledger stops growing and annotation parameters are rejected"', async () => {
  const h = await harness(depth('baseline'), { answer: () => 'reply' })
  const ledger = join(h.home, 'state/auto-model-routing/judgements.jsonl')
  mkdirSync(join(h.home, 'state/auto-model-routing'), { recursive: true })
@@ -301,7 +301,7 @@ it('spec Scenario "旧判档账本不再增长且标注参数被拒"', async () 
  expect(unbound.status).toBe(400)
  expect(readFileSync(ledger, 'utf8')).toBe(old)
 })
-it('spec Scenario "旧绑定的 label 响应不暴露历史版本键"', async () => {
+it('spec Scenario "Label responses for old bindings do not expose historical version keys"', async () => {
  const h = await harness(depth('baseline'), { answer: () => 'reply' })
  await h.setMode('AUTO'); await h.run('first')
  const m0 = lastAssistantId(h)
@@ -332,40 +332,40 @@ it('spec Scenario "旧绑定的 label 响应不暴露历史版本键"', async ()
  // The report groups linked calls; this harness writes no session log, so check the grouping input it uses.
  expect(new FeedbackBook(ledger).entries().find(b => b.messageId === m0)!.snapshot).toMatchObject({ policyVersion: 'policy-v2-d774ffe6', mappingVersion: 'capability-slots-2-magpie' })
 })
-it('spec Scenario "MANUAL 请求原样通过"', async () => {
+it('spec Scenario "MANUAL requests pass through unchanged"', async () => {
  const h = await harness(depth('higher'))
  await h.run('manual')
  expect(h.calls.at(-1)).toMatchObject({ provider: 'test', model: 'claude-opus-5-5', reasoningEffort: 'medium' })
  expect(h.jev.bodies).toHaveLength(0)
 })
-it('spec Scenario "AUTO 只改 effort"', async () => {
+it('spec Scenario "AUTO changes only effort"', async () => {
  const h = await harness(depth('higher'))
- await h.setMode('AUTO'); await h.run('排查多个模块')
+ await h.setMode('AUTO'); await h.run('Investigate several modules')
  expect(h.calls.at(-1)).toMatchObject({ provider: 'test', model: 'claude-opus-5-5', reasoningEffort: 'high' })
 })
-it('spec Scenario "同回合与重试复用决定"', async () => {
+it('spec Scenario "Reuse the same decision within a turn and on retry"', async () => {
  let tools = 4
  const h = await harness(depth('higher'), { toolCalls: () => tools-- })
- await h.setMode('AUTO'); await h.run('排查多个模块')
+ await h.setMode('AUTO'); await h.run('Investigate several modules')
  expect(h.calls).toHaveLength(5)
  expect(h.calls.map(c => c.reasoningEffort)).toEqual(['high', 'high', 'high', 'high', 'high'])
  expect(h.jev.bodies).toHaveLength(1)
 })
-it('spec Scenario "非用户回合沿用上一 depth"', async () => {
+it('spec Scenario "Non-user turns keep the previous depth"', async () => {
  const h = await harness(depth('higher'))
- await h.setMode('AUTO'); await h.run('排查多个模块')
+ await h.setMode('AUTO'); await h.run('Investigate several modules')
  // The official selection now carries high; let the next assembly start from medium again.
  h.selection.current = { provider: 'test', model: 'claude-opus-5-5', reasoningEffort: ReasoningEffortId('medium') }
- h.agent.followup(createUserMessage({ content: [{ type: 'text', text: '子会话完成' }], source: { kind: 'plugin' } as never })); await h.agent.whenIdle()
+ h.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Child session completed' }], source: { kind: 'plugin' } as never })); await h.agent.whenIdle()
  expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
  expect(h.jev.bodies).toHaveLength(1)
 })
-it('spec Scenario "请求内容受限"', async () => {
- const replies = ['我先看了登录代码。要我开始实施吗？', '好的']
+it('spec Scenario "Request content is limited"', async () => {
+ const replies = ['I reviewed the login code. Shall I start implementing the fix?', 'Okay']
  const h = await harness(depth('baseline'), { answer: () => replies.shift() ?? '' })
  await h.setMode('AUTO')
- await h.run('修一下登录')
- await h.run('继续')
+ await h.run('Fix the login flow')
+ await h.run('Continue')
  const body = h.jev.bodies[1] as { model: string; state: string; questions: Record<string, unknown> }
  expect(Object.keys(body).sort()).toEqual(['model', 'questions', 'state'])
  expect(body.model).toBe('typesafe/jev-1.13')
@@ -374,22 +374,22 @@ it('spec Scenario "请求内容受限"', async () => {
  expect(body.state.split('\n')[0]).toBe('Previous user-turn tier: none')
  expect(body.state).not.toContain('Execution:')
  const at = (needle: string) => body.state.indexOf(needle)
- expect(at('修一下登录')).toBeGreaterThan(0)
- expect(at('要我开始实施吗？')).toBeGreaterThan(at('修一下登录'))
- expect(body.state.endsWith('New user message:\n继续')).toBe(true)
+ expect(at('Fix the login flow')).toBeGreaterThan(0)
+ expect(at('Shall I start implementing the fix?')).toBeGreaterThan(at('Fix the login flow'))
+ expect(body.state.endsWith('New user message:\nContinue')).toBe(true)
  expect(body.state).not.toContain(h.agent.id)
  expect(h.jev.headers[1]!.authorization).toBe(`Bearer ${SECRET}`)
  h.jev.set(json(500, {}))
  const sent = h.jev.bodies.length
- await h.setMode('AUTO'); await h.run('再来')
+ await h.setMode('AUTO'); await h.run('Try once more')
  expect(h.jev.bodies).toHaveLength(sent + 1)
 })
-it('spec Scenario "首个用户回合不带上一轮上下文"', async () => {
+it('spec Scenario "The first user turn has no previous-turn context"', async () => {
  const h = await harness(depth('baseline'))
- await h.setMode('AUTO'); await h.run('看下这个报错')
- expect((h.jev.bodies[0] as { state: string }).state).toBe('Previous user-turn tier: none\nUser message:\n看下这个报错')
+ await h.setMode('AUTO'); await h.run('Look into this error')
+ expect((h.jev.bodies[0] as { state: string }).state).toBe('Previous user-turn tier: none\nUser message:\nLook into this error')
 })
-it('spec Scenario "快速切回 AUTO 不恢复旧决定"', async () => {
+it('spec Scenario "Switching quickly back to AUTO does not revive an old decision"', async () => {
  let tools = 0
  const h = await harness(depth('higher'), { toolCalls: () => tools-- })
  await h.setMode('AUTO'); await h.run('first')
@@ -405,7 +405,7 @@ it('spec Scenario "快速切回 AUTO 不恢复旧决定"', async () => {
  expect(h.jev.bodies).toHaveLength(judged + 1)
  expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
 })
-it('spec Scenario "新会话按默认模式创建"', async () => {
+it('spec Scenario "New sessions start in the default mode"', async () => {
  const h = await harness(depth('lower'), { defaultAuto: true })
  expect(await h.invoke('state', { sessionId: h.agent.id })).toMatchObject({ mode: 'AUTO' })
  await h.run('one')
@@ -424,7 +424,7 @@ it('spec Scenario "新会话按默认模式创建"', async () => {
  await resumed.run('one')
  expect(resumed.jev.bodies).toHaveLength(0)
 })
-it('spec Scenario "修改默认模式不影响已有会话"', async () => {
+it('spec Scenario "Changing the default mode does not affect existing sessions"', async () => {
  const h = await harness(depth('lower'), { defaultAuto: true })
  expect(await h.invoke('state', { sessionId: h.agent.id })).toMatchObject({ mode: 'AUTO' })
  await h.setMode('MANUAL')
@@ -437,7 +437,7 @@ it('spec Scenario "修改默认模式不影响已有会话"', async () => {
   expect(new FileStateStore(join(h.home, 'state/auto-model-routing/sessions')).get(s2.agent.id)).toMatchObject({ mode: 'AUTO' })
  } finally { await s2.dispose() }
 })
-it('spec Scenario "各状态码映射为闭集类别"', async () => {
+it('spec Scenario "Status codes map to a closed set of categories"', async () => {
  const cases: [Parameters<typeof harness>[0] | 'no-key', string][] = [
   [json(402, {}), 'insufficient-credits'], [json(401, {}), 'unauthorized'], [json(403, {}), 'unauthorized'], [json(429, {}), 'rate-limited'],
   [json(451, {}), 'region-blocked'], [json(404, {}), 'rejected'], [json(500, {}), 'unavailable'], [(req) => { req.socket.destroy() }, 'unavailable'],
@@ -446,22 +446,22 @@ it('spec Scenario "各状态码映射为闭集类别"', async () => {
  ]
  for (const [reply, category] of cases) {
   const h = await harness(reply === 'no-key' ? depth('higher') : reply, reply === 'no-key' ? { storedKey: '' } : {})
-  await h.setMode('AUTO'); await h.run('任务')
+  await h.setMode('AUTO'); await h.run('Task')
   expect((await h.invoke('state', { sessionId: h.agent.id })).disabled?.category, category).toBe(category)
   if (reply === 'no-key') expect(h.jev.bodies).toHaveLength(0)
   await closeHarness()
  }
 }, 60_000)
-it('spec Scenario "主会话判断提示"', async () => {
+it('spec Scenario "Main-session judgment notification"', async () => {
  const h = await harness(depth('higher', { confidence: 0.4 }))
  h.toast(true)
- await h.setMode('AUTO'); await h.run('排查多个模块')
+ await h.setMode('AUTO'); await h.run('Investigate several modules')
  const state = await h.invoke('state', { sessionId: h.agent.id })
  expect(state).toMatchObject({ decisionToast: true, decision: { source: 'main', depth: 'higher', effort: 'high', status: 'applied', confidence: 0.4, decisionProvider: 'openrouter', decisionModel: 'typesafe/jev-1.13', provider: 'test', model: 'claude-opus-5-5' } })
  const { toastText } = await import('../src/client/control.js')
  const lines = toastText(state.decision)
- expect(lines[0]).toBe('主会话 · 已应用')
- expect(lines).toContain('投入 higher · 判定确定度 40%')
+ expect(lines[0]).toBe('main session · applied')
+ expect(lines).toContain('investment higher · decision confidence 40%')
  expect(lines).toContain('test / claude-opus-5-5 · high')
  expect(lines.some((l: string) => /^openrouter \/ typesafe\/jev-1\.13 · \d+\.\d{2}s$/.test(l))).toBe(true)
 })

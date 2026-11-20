@@ -6,7 +6,7 @@ export declare const DECISION_SERVICES: {
         readonly credential: "OPENROUTER_API_KEY";
     };
     readonly typesafe: {
-        readonly label: "TypeSafe 官方";
+        readonly label: "TypeSafe official";
         readonly endpoint: "https://api.typesafe.ai/v1/systemone";
         readonly model: "jev-1.13.0";
         readonly credential: "TYPESAFE_API_KEY";
@@ -18,7 +18,7 @@ export declare const DECISION_SERVICES: {
         readonly credential: "CONCENTRATE_API_KEY";
     };
     readonly custom: {
-        readonly label: "自定义 System One";
+        readonly label: "Custom System One";
         readonly endpoint: "";
         readonly model: "jev-1.13.0";
         readonly credential: "AUTO_DECISION_CUSTOM_API_KEY";

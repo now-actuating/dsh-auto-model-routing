@@ -61,38 +61,38 @@ async function harness() {
  return { calls, run, jev, selections, sessionId: agent.id, setMode: (mode: 'AUTO' | 'MANUAL') => call('setMode', { sessionId: agent.id, mode }), pick: (effort: string) => agent.model.select({ provider: 'test', model: 'claude-opus-5-5', reasoningEffort: ReasoningEffortId(effort) }) }
 }
 
-it('spec Scenario "AUTO 结果同步到官方选择"', async () => {
+it('spec Scenario "AUTO results synchronize to the official selection"', async () => {
  const h = await harness()
  await h.setMode('AUTO')
- await h.run('排查多个模块')
- await h.run('继续排查')
+ await h.run('Investigate several modules')
+ await h.run('Keep investigating')
  expect(h.calls.slice(-2).map(c => c.reasoningEffort)).toEqual(['high', 'high'])
  expect(h.selections).toEqual([{ sessionId: h.sessionId, provider: 'test', model: 'claude-opus-5-5', reasoningEffort: 'high' }])
 })
-it('spec Scenario "切回 MANUAL 不复原"', async () => {
+it('spec Scenario "Switching to MANUAL does not restore the prior selection"', async () => {
  const h = await harness()
- await h.run('普通问题')
+ await h.run('A routine question')
  // 0.2.2: a request header retires the matching pending selection itself (no controller consume step).
  await h.setMode('AUTO')
- await h.run('排查多个模块')
+ await h.run('Investigate several modules')
  expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
  await h.setMode('MANUAL')
- await h.run('继续')
- await h.run('再继续')
+ await h.run('Continue')
+ await h.run('Continue again')
  // No restore: the official selection keeps high and MANUAL passes it through.
  expect(h.calls.slice(-2).map(c => c.reasoningEffort)).toEqual(['high', 'high'])
  expect(h.jev.bodies).toHaveLength(1)
 })
-it('spec Scenario "AUTO 判档覆盖待生效手选"', async () => {
+it('spec Scenario "AUTO judgment overrides a pending manual selection"', async () => {
  const h = await harness()
  await h.setMode('AUTO')
- await h.run('排查多个模块')
+ await h.run('Investigate several modules')
  // A pick made during AUTO is replaced by the next AUTO decision (synced to the official selection).
  h.pick('medium')
- await h.run('排查多个模块')
+ await h.run('Investigate several modules')
  expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
  expect(h.selections.at(-1)).toMatchObject({ reasoningEffort: 'high' })
  await h.setMode('MANUAL')
- await h.run('继续')
+ await h.run('Continue')
  expect(h.calls.at(-1)?.reasoningEffort).toBe('high')
 })

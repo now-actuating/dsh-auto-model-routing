@@ -8,7 +8,7 @@ const skill = () => existsSync(skillPath) ? readFileSync(skillPath, 'utf8') : ''
 it('report_skill_is_on_demand_only', () => {
  const text = readFileSync(resolve(import.meta.dirname, '../skills/auto-model-routing-report/SKILL.md'), 'utf8')
  const [, front = '', body = ''] = text.split(/^---$/m)
- for (const part of [front, body]) { expect(part).toContain('仅当用户明确要求'); expect(part).toMatch(/不得主动执行[^。\n]*定时任务/) }
+ for (const part of [front, body]) { expect(part).toContain('Use only when the user explicitly asks'); expect(part).toMatch(/Do not run it proactively[^.\n]*create scheduled tasks/i) }
  const files = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8')).files as string[]
  expect(files).toEqual(expect.arrayContaining(['lib', 'skills']))
  expect(files).not.toContain('scripts/label-report.mjs')
@@ -34,7 +34,7 @@ it('runtime_relative_imports_resolve_inside_the_standalone_package', () => {
   for (const value of Object.values(dependencies ?? {})) expect(value).not.toMatch(/^(?:workspace:|file:|link:)/)
  }
 })
-it('spec Scenario "源码不含本地分类与其它出站"', () => {
+it('spec Scenario "Source contains no local classification or other outbound calls"', () => {
  expect(PRESETS.flatMap(p=>p.sources.map(x=>new URL(x.url).host))).toContain('claude.dev')
  for(const [file,text] of sources()) {
   expect(text,file).not.toMatch(/export function (classify|resolveLevel)\b/)
@@ -49,10 +49,10 @@ it('spec Scenario "源码不含本地分类与其它出站"', () => {
  }
  expect(sources().map(([file])=>file)).not.toContain('classifier.ts')
 })
-it('spec Scenario "skill 只含当前用法"',()=>{
+it('spec Scenario "The skill only describes current usage"',()=>{
  const text=skill()
- for(const rule of ['route_subagent','fresh','recommended','routed: false','[model·effort]','fork','childRouting','暂停委派并询问用户','子会话 Jev 选模未启用','新建']) expect(text,rule).toContain(rule)
- for(const word of ['simple','escalated','legacy','原策略','旧策略','回滚']) expect(text,word).not.toContain(word)
+ for(const rule of ['route_subagent','fresh','recommended','routed: false','[model·effort]','fork','childRouting','pause delegation and ask the user','Jev model selection for child sessions is not enabled','Create a new']) expect(text,rule).toContain(rule)
+ for(const word of ['simple','escalated','legacy','original strategy','old strategy','rollback']) expect(text,word).not.toContain(word)
  expect(text).not.toMatch(/\b(?:claude|gpt)-[A-Za-z0-9.]/)
 })
 it('client_sources_stay_browser_safe',()=>{
@@ -62,7 +62,7 @@ it('client_sources_stay_browser_safe',()=>{
   expect(text,file).not.toMatch(/node:/)
  }
 })
-it('spec Scenario "家族知识只有一个来源"', () => {
+it('spec Scenario "Model families have a single source of truth"', () => {
  const offenders: string[] = []
  for (const [file, text] of sources()) {
   if (file.startsWith('strategies/') || file.startsWith('strategies\\')) continue

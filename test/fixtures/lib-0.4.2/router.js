@@ -43,7 +43,7 @@ export class Router {
         const state = this.state.read(agent.id);
         const active = state.mode === 'AUTO' && (input.userTurn || old?.active === true);
         const judge = active && input.userTurn;
-        // Memory first; after a restart the persisted tier keeps "继续" anchored to the last judgement.
+        // Memory first; after a restart the persisted tier keeps "Continue" anchored to the last judgement.
         const previous = old?.previous ?? state.previous;
         const tier = judge ? undefined : previous;
         this.runtimes.set(agent, {

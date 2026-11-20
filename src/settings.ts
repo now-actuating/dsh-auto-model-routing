@@ -17,20 +17,20 @@ const ordinary = {
 }
 const patchSchema = z.object(Object.fromEntries(Object.entries(ordinary).map(([key, schema]) => [key, schema.optional()]))).strict()
 export class SettingsValidationError extends Error {
-  constructor(public readonly issues: SettingsIssue[]) { super('自动模型路由设置无效'); this.name = 'SettingsValidationError' }
+  constructor(public readonly issues: SettingsIssue[]) { super('Invalid auto model routing settings'); this.name = 'SettingsValidationError' }
 }
 function schemaIssues(error: z.ZodError, prefix = ''): SettingsIssue[] {
   return error.issues.flatMap(entry => {
     // Unknown keys (retired mapping keys included) are reported by name.
-    if (entry.code === 'unrecognized_keys') return entry.keys.map(key => issue([prefix, ...entry.path.map(String), key].filter(Boolean).join('.'), 'unknown-setting', '未知设置字段'))
-    return [issue([prefix, ...entry.path.map(String)].filter(Boolean).join('.'), 'invalid-setting', '设置字段无效')]
+    if (entry.code === 'unrecognized_keys') return entry.keys.map(key => issue([prefix, ...entry.path.map(String), key].filter(Boolean).join('.'), 'unknown-setting', 'Unknown settings field'))
+    return [issue([prefix, ...entry.path.map(String)].filter(Boolean).join('.'), 'invalid-setting', 'Invalid settings field')]
   })
 }
 function credentialFields(value: unknown, path = ''): SettingsIssue[] {
   if (!isRecord(value)) return []
   return Object.entries(value).flatMap(([key, entry]) => {
     const next = path ? `${path}.${key}` : key
-    if (/(password|secret|token|credential|private.?key|api.?key)/i.test(key)) return [issue(next, 'credential-field', '凭据不能保存在设置文件中')]
+    if (/(password|secret|token|credential|private.?key|api.?key)/i.test(key)) return [issue(next, 'credential-field', 'Credentials cannot be saved in the settings file')]
     return credentialFields(entry, next)
   })
 }
@@ -41,9 +41,9 @@ export class SettingsStore {
     try { raw = JSON.parse(readFileSync(this.path, 'utf8')) }
     catch (error) {
       const missing = (error as NodeJS.ErrnoException).code === 'ENOENT'
-      return { settings: { ...DEFAULT_SETTINGS }, status: missing ? 'missing' : 'invalid', deprecated: [], issues: missing ? [] : [issue('', 'invalid-file', '设置文件无法读取或解析，保存将覆盖它')] }
+      return { settings: { ...DEFAULT_SETTINGS }, status: missing ? 'missing' : 'invalid', deprecated: [], issues: missing ? [] : [issue('', 'invalid-file', 'Cannot read or parse the settings file; saving will overwrite it')] }
     }
-    if (!isRecord(raw)) return { settings: { ...DEFAULT_SETTINGS }, status: 'invalid', deprecated: [], issues: [issue('', 'invalid-file', '设置文件必须是对象')] }
+    if (!isRecord(raw)) return { settings: { ...DEFAULT_SETTINGS }, status: 'invalid', deprecated: [], issues: [issue('', 'invalid-file', 'The settings file must contain an object')] }
     const settings: Settings = { ...DEFAULT_SETTINGS }
     const issues: SettingsIssue[] = []
     for (const [key, schema] of Object.entries(ordinary)) {

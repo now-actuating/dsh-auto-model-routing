@@ -119,7 +119,7 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
     const chosen = chooseChildRoute({ provider: explicit.provider, parent, explicit, capability, depth, catalog, cap: deps.settings().effortCap, captured: capturedAllowlist(record.parentId) }, registry)
     if ('fallback' in chosen) { fallback(record, chosen.fallback); return }
     const route = chosen.route
-    record = { ...record, route, status: 'recommended', decision: { id: ++decisionId, source: 'subagent', tier: capability, depth, capability, effort: route.reasoningEffort, model: route.model, provider: route.provider, status: 'recommended', ms: measure?.ms ?? 0, decisionProvider: measure?.decisionProvider ?? 'explicit', decisionModel: measure?.decisionModel ?? '未调用', ...(measure?.confidence !== undefined ? { confidence: measure.confidence } : {}), ...(measure?.capabilityConfidence !== undefined ? { capabilityConfidence: measure.capabilityConfidence } : {}), ...(measure?.probabilities ? { probabilities: measure.probabilities } : {}), ...(measure?.capabilityProbabilities ? { capabilityProbabilities: measure.capabilityProbabilities } : {}) } }
+    record = { ...record, route, status: 'recommended', decision: { id: ++decisionId, source: 'subagent', tier: capability, depth, capability, effort: route.reasoningEffort, model: route.model, provider: route.provider, status: 'recommended', ms: measure?.ms ?? 0, decisionProvider: measure?.decisionProvider ?? 'explicit', decisionModel: measure?.decisionModel ?? 'not called', ...(measure?.confidence !== undefined ? { confidence: measure.confidence } : {}), ...(measure?.capabilityConfidence !== undefined ? { capabilityConfidence: measure.capabilityConfidence } : {}), ...(measure?.probabilities ? { probabilities: measure.probabilities } : {}), ...(measure?.capabilityProbabilities ? { capabilityProbabilities: measure.capabilityProbabilities } : {}) } }
     deps.store.set(record); pending.delete(agent.id); childEpochs.delete(agent.id)
     // The child's own selection (durable `model/selection`), never the session-controller path: no global default is written.
     agent.model.select(route as Parameters<typeof agent.model.select>[0])
@@ -160,14 +160,14 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
     await routeChild(agent, record, binding.prompt, signal ?? new AbortController().signal)
   })
   const requireBindingRecord = (agent: Agent, record: ChildDecision | undefined) => {
-    if (deps.store.wasBound(agent.id) && !record) throw new Error('已绑定子会话的决策记录缺失，无法恢复；停止请求，不恢复继承配置')
+    if (deps.store.wasBound(agent.id) && !record) throw new Error('The bound child session decision record is missing and cannot be restored; stop the request without reverting to inherited settings')
   }
   ctx.on('agent/disposed', ({ agent }) => { pending.delete(agent.id); childPreset.delete(agent.id); mainStatus.delete(agent.id); mainDecided.delete(agent.id); return undefined })
   /**
    * Main session, every step: compute the step's effort and apply it before the request is prepared.
    * DSH 0.2.2 pins `model.current()` at the start of each pre-step and fails any `agent/request` result that differs from it,
    * so the effort is synced to the official selection first and then written into the step's pinned selection (the object
-   * the request is prepared from; see spec「本步选择改写依赖运行体核验」). Only the effort is touched, never provider/model.
+   * the request is prepared from; see spec"Current-step selection rewriting requires runtime verification"). Only the effort is touched, never provider/model.
    */
   const applyMainEffort = async (payload: Parameters<Parameters<typeof ctx.on<'agent/pre-step'>>[1]>[0]) => {
     const agent = payload.agent
@@ -176,7 +176,7 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
     const selection = payload.modelSelection
     // Authoritative gate: the step's actual model decides, whatever the picker showed earlier.
     if (!autoSupportedModel(selection.model, registry)) { lockUnsupportedMain(agent); return }
-    const unsupported = (effort = '模型不支持调整') => {
+    const unsupported = (effort = 'adjustment unsupported') => {
       const old = mainStatus.get(agent.id)
       mainStatus.set(agent.id, { ...old, depth: runtime.depth, reason: 'no-effort-support', ...(old?.decision ? { decision: { ...old.decision, status: 'unsupported', model: selection.model, provider: selection.provider, effort } } : {}) })
     }
@@ -230,7 +230,7 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
         main.set(agent, { turn: payload.turn, depth: result.depth, active: true, epoch: startedEpoch })
         const { kind: _kind, ...measurement } = result
         latest.delete(agent.id)
-        mainStatus.set(agent.id, { depth: result.depth, reason: 'jev', decision: { ...measurement, id: ++decisionId, source: 'main', tier: result.depth, effort: '待应用', status: 'recommended', preset: preset.id } })
+        mainStatus.set(agent.id, { depth: result.depth, reason: 'jev', decision: { ...measurement, id: ++decisionId, source: 'main', tier: result.depth, effort: 'pending application', status: 'recommended', preset: preset.id } })
         mainDecided.set(agent.id, { id: decisionId, decidedAt: Date.now(), preset: preset.id })
         if (mainStatus.size > 200) mainStatus.delete(mainStatus.keys().next().value!)
       } else if (old) main.set(agent, { ...old, turn: payload.turn })
@@ -247,17 +247,17 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
     // on every attempt (retries included), and returns the request unchanged.
     const record = deps.store.get(agent.id)
     requireBindingRecord(agent, record)
-    if (record && record.parentId !== agent.session.header.parentSession) throw new Error('决策身份不匹配')
+    if (record && record.parentId !== agent.session.header.parentSession) throw new Error('Decision identity mismatch')
     if (record && !record.route && record.status === 'recommended' && !pending.has(agent.id)) { fallback(record, 'interrupted'); return config }
     if (!record?.route) return config
-    if (record.status === 'failed') throw new Error('实际应用失败；暂停子请求并询问用户')
+    if (record.status === 'failed') throw new Error('Failed to apply the route; pause the child request and ask the user')
     // Existing routed instances keep their initial route; live gates are re-checked on every request.
     validatePolicyRoute(await deps.catalog(record.route.provider), record.route.provider, record.route.model, record.route.reasoningEffort, deps.settings().effortCap, capturedAllowlist(record.parentId))
     if (config.provider !== record.route.provider || config.model !== record.route.model || config.reasoningEffort !== record.route.reasoningEffort) {
       const preset = childPreset.get(agent.id)
       if (record.decision) latest.set(record.rootId, { ...record.decision, status: 'failed', ...(preset && record.decision.decisionProvider !== 'explicit' ? { preset } : {}) })
-      deps.store.set({ ...record, ...(record.decision ? { decision: { ...record.decision, status: 'failed' } } : {}), status: 'failed', reason: '实际请求配置不匹配' })
-      throw new Error('实际请求配置不匹配')
+      deps.store.set({ ...record, ...(record.decision ? { decision: { ...record.decision, status: 'failed' } } : {}), status: 'failed', reason: 'Actual request settings do not match the route' })
+      throw new Error('Actual request settings do not match the route')
     }
     return config
   }, { prepend: true })
@@ -306,8 +306,8 @@ export function policyHost(ctx: Context, deps: { selectModel: (request: { sessio
     const matches = actual.provider === record.route.provider && actual.model === record.route.model && actual.reasoningEffort === record.route.reasoningEffort
     const preset = childPreset.get(session.id)
     if (record.decision) latest.set(record.rootId, { ...record.decision, status: matches ? 'applied' : 'failed', ...(preset && record.decision.decisionProvider !== 'explicit' ? { preset } : {}) })
-    deps.store.set({ ...record, ...(record.decision ? { decision: { ...record.decision, status: matches ? 'applied' : 'failed' } } : {}), status: matches ? 'applied' : 'failed', ...(matches ? { actual: record.route } : { reason: '实际请求配置不匹配' }) })
-    if (!matches) throw new Error('实际请求配置不匹配')
+    deps.store.set({ ...record, ...(record.decision ? { decision: { ...record.decision, status: matches ? 'applied' : 'failed' } } : {}), status: matches ? 'applied' : 'failed', ...(matches ? { actual: record.route } : { reason: 'Actual request settings do not match the route' }) })
+    if (!matches) throw new Error('Actual request settings do not match the route')
   })
   return {
     appliedDecision: (id: string) => enabled(id) ? applied.get(id)?.id : undefined,

@@ -19,7 +19,7 @@ it('moves at most one supported step and never automatically uses max', () => {
   expect(() => policyEffort('unknown', 'baseline', ['low','high'], 'xhigh')).toThrow()
 })
 
-it('spec Scenario "支持范围判定只依据注册表"', () => {
+it('spec Scenario "Support is determined solely by the registry"', () => {
   for (const model of ['claude-opus-5-5', 'gpt-6-astra', 'GPT-5.6-Sol', 'CLAUDE-fable-5-1', 'claude/claude-opus-5-5', 'codex/gpt-6.1-sol']) {
     expect(autoSupportedModel(model), model).toBe(true)
     expect(registry.familyOfMainModel(model), model).toBeDefined()
@@ -34,7 +34,7 @@ it('spec Scenario "支持范围判定只依据注册表"', () => {
 const solRaised = <T extends { model: string; reasoningEffort: string }>(r: T): T =>
   /(^|\/)gpt-6\.1-sol$/.test(r.model) ? { ...r, reasoningEffort: ({ low: 'medium', medium: 'high', high: 'xhigh' } as Record<string, string>)[r.reasoningEffort] ?? r.reasoningEffort } : r
 
-it('spec Scenario "内置子路由与原行为一致"', () => {
+it('spec Scenario "Built-in child routing matches previous behavior"', () => {
   expect(oracle.childRoutes.length).toBe(54)
   const all = [...new Map(oracle.childRoutes.map(row => [`${row.value.provider} ${row.value.model}`, entry(row.value.provider, row.value.model)])).values()]
   const parentOf = (provider: string, family: string | null) => {
@@ -48,14 +48,14 @@ it('spec Scenario "内置子路由与原行为一致"', () => {
   }
 })
 
-it('spec Scenario "能力槽只在父 provider 内解析"', () => {
+it('spec Scenario "Capability slots resolve only within the parent provider"', () => {
   const sol = entry('traex', 'GPT-5.6-Sol', ['low', 'medium', 'high', 'xhigh'], 'medium')
   const result = route({ provider: 'traex', parent: { model: 'GPT-5.6-Sol', reasoningEffort: 'medium' }, catalog: cat([entry('codex', 'gpt-6-luna'), sol]) })
   expect(result).toEqual({ route: { provider: 'traex', model: 'GPT-5.6-Sol', reasoningEffort: 'medium' } })
   expect(JSON.stringify(result)).not.toMatch(/codex|gpt-6-luna/)
 })
 
-it('spec Scenario "能力槽须与父模型前缀相同"', () => {
+it('spec Scenario "Capability slots must match the parent model prefix"', () => {
   const models = [entry('dsh-magpie-connect', 'opencode-go/gpt-6-luna'), entry('dsh-magpie-connect', 'codex/gpt-6.1-sol')]
   expect(route({ provider: 'dsh-magpie-connect', parent: { model: 'codex/gpt-6.1-sol' }, catalog: cat(models) }))
     .toEqual({ route: { provider: 'dsh-magpie-connect', model: 'codex/gpt-6.1-sol', reasoningEffort: 'high' } })
@@ -80,31 +80,31 @@ it('unregistered family models keep the model and only validate effort', () => {
   expect(route({ provider: m.provider, parent, explicit: { model: '../kimi-k3', reasoningEffort: 'low' }, catalog: cat([m]) })).toEqual({ fallback: 'explicit-unavailable' })
 })
 
-it('spec Scenario "能力槽可用时按能力选模"', () => {
+it('spec Scenario "An available capability slot determines model selection"', () => {
   expect(route({ provider: 'codex', parent: { model: 'gpt-6.1-sol', reasoningEffort: 'medium' }, catalog: cat([entry('codex', 'gpt-6-luna'), entry('codex', 'gpt-6.1-sol')]) }))
     .toEqual({ route: { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'high' } })
 })
-it('spec Scenario "provider 没有能力槽模型时保持父模型"', () => {
+it('spec Scenario "Keep the parent model when the provider lacks the capability-slot model"', () => {
   const sol = entry('traex', 'GPT-5.6-Sol', ['low', 'medium', 'high', 'xhigh'], 'medium')
   const result = route({ provider: 'traex', parent: { model: 'GPT-5.6-Sol', reasoningEffort: 'medium' }, depth: 'higher', catalog: cat([sol]) })
   expect(result).toEqual({ route: { provider: 'traex', model: 'GPT-5.6-Sol', reasoningEffort: 'high' } })
 })
-it('spec Scenario "depth effort 不可得时用父会话 effort"', () => {
+it('spec Scenario "Use parent effort when depth-based effort is unavailable"', () => {
   const sol = entry('traex', 'GPT-5.6-Sol')
   expect(route({ provider: 'traex', parent: { model: 'GPT-5.6-Sol', reasoningEffort: 'medium' }, depth: 'higher', catalog: cat([sol]) }))
     .toEqual({ route: { provider: 'traex', model: 'GPT-5.6-Sol', reasoningEffort: 'medium' } })
 })
-it('spec Scenario "父会话 effort 也不可用时不改写并告警"', () => {
+it('spec Scenario "Warn and leave the request unchanged if parent effort is also unavailable"', () => {
   const sol = entry('traex', 'GPT-5.6-Sol', ['max'])
   expect(route({ provider: 'traex', parent: { model: 'GPT-5.6-Sol', reasoningEffort: 'max' }, catalog: cat([sol]) })).toEqual({ fallback: 'no-usable-route' })
 })
-it('spec Scenario "显式维度不可用时不替换"', () => {
+it('spec Scenario "Do not replace unavailable explicit dimensions"', () => {
   const models = [entry('claude', 'claude-haiku-5-5'), entry('claude', 'claude-opus-5-5', ['low', 'medium'])]
   const base = { provider: 'claude', parent: { model: 'claude-opus-5-5', reasoningEffort: 'medium' }, cap: 'high' as const, catalog: cat(models) }
   for (const explicit of [{ model: 'claude-haiku-5-5', reasoningEffort: 'xhigh' }, { reasoningEffort: 'xhigh' }, { reasoningEffort: 'turbo' }])
     expect(route({ ...base, explicit }), JSON.stringify(explicit)).toEqual({ fallback: 'explicit-unavailable' })
 })
-it('spec Scenario "只显式 effort 时能力槽须支持该 effort"', () => {
+it('spec Scenario "The capability slot must support an explicitly specified effort"', () => {
   const models = [entry('claude', 'claude-haiku-5-5', ['low', 'medium']), entry('claude', 'claude-opus-5-5')]
   expect(route({ provider: 'claude', parent: { model: 'claude-opus-5-5', reasoningEffort: 'medium' }, explicit: { reasoningEffort: 'high' }, catalog: cat(models) }))
     .toEqual({ route: { provider: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'high' } })

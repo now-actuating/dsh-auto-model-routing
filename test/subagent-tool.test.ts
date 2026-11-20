@@ -27,21 +27,21 @@ async function tool(reply: Reply, modes: Record<string, 'AUTO' | 'MANUAL'> = { S
 }
 const exec = (agent: FakeAgent | undefined = session('S1'), signal = new AbortController().signal) => ({ signal, agent }) as never
 
-it('spec Scenario "AUTO 下返回推荐且保留显式维度"', async () => {
+it('spec Scenario "AUTO recommends a route while preserving explicit dimensions"', async () => {
  const { def, server } = await tool(both())
  expect(await def.execute({ task: 'synthetic', provider: 'claude' }, exec())).toMatchObject({ status: 'recommended', model: haiku.model, reasoning_effort: 'medium' })
  expect(await def.execute({ task: 'synthetic', provider: 'claude', model: haiku.model, reasoning_effort: 'high' }, exec())).toMatchObject({ status: 'recommended', reasoning_effort: 'high' })
  expect(await def.execute({ task: 'synthetic', provider: 'claude', path: 'fork' }, exec())).toMatchObject({ status: 'unsupported' })
  expect(server.bodies).toHaveLength(1)
 })
-it('spec Scenario "MANUAL 与不可用路由"', async () => {
+it('spec Scenario "MANUAL mode and unavailable routes"', async () => {
  const live = [session('S1'), session('S2')]
  const { def, server, state } = await tool(both(), { S1: 'MANUAL', S2: 'AUTO' }, live, { catalog: () => ({ models: [haiku], childAllowlist: { status: 'enabled', allowedModels: [] } }) })
  const result = await def.execute({ task: 'x', provider: 'codex' }, exec(live[0]))
  expect(result).toEqual({ routed: false, reason: 'manual' })
  expect(server.bodies).toHaveLength(0)
  // The caller's chosen model must survive MANUAL: the hint may not tell the agent to drop it.
- expect(def.output!.render({} as never, result as never)[0]).toMatchObject({ text: expect.stringContaining('只传用户或 lead 指定的值') })
+ expect(def.output!.render({} as never, result as never)[0]).toMatchObject({ text: expect.stringContaining('Only pass values specified by the user or lead') })
  const s2 = session('S2', undefined, { provider: 'codex', model: 'gpt-6.1-sol', reasoningEffort: 'max' })
  const fallback = await def.execute({ task: 'x', provider: 'codex' }, exec(s2))
  expect(fallback).toEqual({ routed: false, status: 'fallback', reason: 'no-usable-route' })
@@ -82,8 +82,8 @@ it('tool_failure_reports_without_state_change', async () => {
  const controller = new AbortController(); controller.abort()
  const held = await tool(() => {})
  const error = await held.def.execute({ task: 'x', provider: 'claude' }, exec(session('S1'), controller.signal)).catch((e: Error) => e)
- expect(String(error)).toMatch(/取消/)
- expect(String(error)).not.toMatch(/余额|凭据|OPENROUTER/)
+ expect(String(error)).toMatch(/cancelled/)
+ expect(String(error)).not.toMatch(/credits|credential|OPENROUTER/)
 })
 it('explicit model judges only depth and never substitutes', async () => {
  const astra = { provider: 'codex', model: 'gpt-6-astra', name: 'Astra', reasoningEfforts: ['low', 'medium', 'high', 'xhigh'] }
@@ -98,29 +98,29 @@ it('explicit model judges only depth and never substitutes', async () => {
 it('description and output carry no version or policy names', async () => {
  const { def } = await tool(both())
  const text = JSON.stringify({ description: def.description, parameters: def.parameters })
- for (const word of ['policy-v2', 'legacy', '原策略', '旧策略', '回滚']) expect(text).not.toContain(word)
+ for (const word of ['policy-v2', 'legacy', 'original policy', 'old policy', 'rollback']) expect(text).not.toContain(word)
  expect(def.description).toMatch(/recommendation only/)
  expect(def.description).toMatch(/fresh creation tool/)
  expect(def.description).toMatch(/decision service/)
 })
-it('spec Scenario "预览失败与取消的区分"', async () => {
+it('spec Scenario "A failed preview is distinguishable from cancellation"', async () => {
  const { def, disk, server } = await tool(json(200, { answers: { capability: { choice: 'insufficient_context' }, depth: { choice: 'baseline' } } }))
  const before = structuredClone([...disk])
  expect(await def.execute({ task: 'x', provider: 'claude' }, exec())).toMatchObject({ routed: false, status: 'needs-context' })
  server.set(json(402, {}))
  expect(await def.execute({ task: 'x', provider: 'claude' }, exec())).toEqual({ routed: false, status: 'fallback', reason: 'jev-insufficient-credits' })
  const controller = new AbortController(); controller.abort()
- await expect(def.execute({ task: 'x', provider: 'claude' }, exec(session('S1'), controller.signal))).rejects.toThrow(/已取消/)
+ await expect(def.execute({ task: 'x', provider: 'claude' }, exec(session('S1'), controller.signal))).rejects.toThrow(/was cancelled/)
  expect([...disk]).toEqual(before)
 })
-it('spec Scenario "未登记的 provider 不被枚举拒绝"', async () => {
+it('spec Scenario "An unregistered provider is not rejected by enum validation"', async () => {
  const sol = { provider: 'traex', model: 'GPT-5.6-Sol', name: 'Sol', reasoningEfforts: ['low', 'medium', 'high', 'xhigh'], defaultEffort: 'medium' }
  const caller = session('S1', undefined, { provider: 'traex', model: 'GPT-5.6-Sol', reasoningEffort: 'medium' })
  const { def } = await tool(both('bounded', 'higher'), undefined, [caller], { catalog: () => ({ models: [sol], childAllowlist: { status: 'enabled', allowedModels: [sol] } }) })
  expect(JSON.stringify(def.parameters)).not.toContain('dsh-magpie-connect')
  expect(await def.execute({ task: 'x', provider: 'traex' }, exec(caller))).toMatchObject({ status: 'recommended', provider: 'traex', model: 'GPT-5.6-Sol', reasoning_effort: 'high' })
 })
-it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "未注册家族的 Magpie 模型需显式模型与可验证 effort" (%s)', async provider => {
+it.each(['dsh-magpie-connect','dsh-magpie-connector'] as const)('spec Scenario "Magpie models from unregistered families require an explicit model and verifiable effort" (%s)', async provider => {
  const m={provider,model:'opencode-go/kimi-k3',name:'Kimi',reasoningEfforts:['low','high'],defaultEffort:'high'}
  let catalog:RoutingCatalog={models:[m],childAllowlist:{status:'enabled',allowedModels:[m]}}
  const {def,server}=await tool(json(200,{answers:{depth:{choice:'baseline'}}}),undefined,undefined,{catalog:async()=>catalog})

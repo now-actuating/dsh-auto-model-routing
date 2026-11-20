@@ -1,7 +1,5 @@
 # dsh-auto-model-routing
 
-English · [简体中文](README.zh.md)
-
 ![AUTO applied a higher effort to the main session; the panel shows the returned decision distribution](docs/auto-routing.en.png)
 
 ![Settings: decision service, compatible endpoint and a successful connection test](docs/settings.en.png)

@@ -1,101 +1,101 @@
-# AUTO 路由策略与推进计划（修订版）
+# AUTO routing strategy and roadmap (revised)
 
-日期：2026-10-24。状态：已确认职责方向的设计草案，具体规则和宿主接入待验证；不是实施或部署记录，不改变现行规范与运行行为。
+Date: 2026-10-24. Status: Design draft with responsibilities agreed; specific rules and host integration still need verification. This is not an implementation or deployment record and does not change the current specification or runtime behavior.
 
-## 1. 核心定位
+## 1. Core roles
 
-尊重 Agent 的任务组织权；AUTO 补齐资源选择与实际生效能力；Jev 按明确的策略快速判断。先讨论什么决定是正确的，再设计决策问题，最后优化判断性能。不能因 Jev 支持四档就反推策略必须是四档。
+Respect the agent's authority to organize work. AUTO fills the gap between resource selection and actual application; Jev makes fast judgements according to a defined strategy. First decide what a correct decision looks like, then design the questions, and only then optimize judgement performance. Jev's ability to support four tiers does not mean the strategy must use four tiers.
 
-| 责任方 | 负责 | 不负责 |
+| Owner | Responsible for | Not responsible for |
 |---|---|---|
-| 主 Agent / Team Lead | 理解目标、决定是否派发、拆解任务、选择协作形式、定义验收、整合与失败处置 | 不要求它通过没有模型参数的接口完成资源选配 |
-| AUTO | 主会话 effort、子任务 model 与 effort 的独立选择，确定性约束，以及在支持的宿主路径实际生效 | 不重新实现团队任务调度、消息与任务板，不替代主模型验收 |
-| Jev | 按已明确的策略判断当前工作的能力需求和推理投入 | 不制定目标权衡、不拆整个项目、不判断未经执行的任务已成功 |
-| 宿主接入与确定性代码 | 模型目录/允许列表、显式选择优先级、映射、决策绑定、实际请求核验 | 不把推荐结果当作已生效结果 |
+| Main Agent / Team Lead | Understanding the goal, deciding whether to delegate, decomposing tasks, choosing how to collaborate, defining acceptance, integrating results, and handling failures | Selecting resources through interfaces that have no model parameters |
+| AUTO | Independently selecting main-session effort and subtask model and effort, enforcing deterministic constraints, and applying choices on supported host paths | Reimplementing team scheduling, messaging, or task boards, or replacing main-model acceptance |
+| Jev | Judging the capability and reasoning investment the current work requires under the defined strategy | Setting goal trade-offs, decomposing the entire project, or declaring success before execution |
+| Host integration and deterministic code | Model catalog and allowlist, explicit selection precedence, mapping, decision binding, and actual request verification | Treating a recommendation as an applied result |
 
-## 2. 范围与不变量
+## 2. Scope and invariants
 
-- 主会话保留用户选择的 provider/model，只调整 effort。
-- 适宜任务交给较轻量 worker，但不要求所有子任务都降模；复杂调查和独立审查可使用强模型。
-- 不改变 MANUAL 的继承/选择行为。本轮按用户范围约定排除 dsh-plugin-subscriptions，不调查或修改它，不以其缓存实验作为前置条件。此处是范围约定，不是宣称该适配器在技术上仅运行于 MANUAL。
-- 不替换 Jev，不引入多分类器，不改底层缓存协议，不自动发布或部署。
-- 保留同回合稳定与显式用户约束；Jev 失败沿用现有可见退出/暂停契约，不静默降档。
-- 缓存影响保留为评估限制，不承诺固定模型或调 effort 必然保缓存。
-- 本轮讨论 Teams 支持不等于授权启动团队。
+- Keep the user-selected provider/model in the main session; adjust only effort.
+- Use lighter workers for suitable work, but do not downgrade every subtask. Complex investigations and independent reviews may use stronger models.
+- Do not change MANUAL inheritance or selection. Per the user's scope decision, exclude dsh-plugin-subscriptions this round: do not investigate or modify it, and do not make its cache experiments a prerequisite. This scope decision does not imply that the adapter technically runs only in MANUAL.
+- Do not replace Jev, introduce multiple classifiers, change the underlying cache protocol, or automatically publish or deploy.
+- Preserve same-turn stability and explicit user constraints. If Jev fails, keep the existing visible exit/pause contract rather than silently downgrading.
+- Treat cache effects as an evaluation limitation. Do not promise that a fixed model or a change in effort preserves the cache.
+- Discussing Teams support does not authorize starting a team.
 
-## 3. 策略草案
+## 3. Draft strategy
 
-### 3.1 工作组织交给 Agent
+### 3.1 Let the agent organize the work
 
-任务能独立描述、执行和验收，且并行/上下文隔离收益超过移交与复核成本时考虑派发。小修复、紧密依赖当前上下文的讨论留在主线程。不另设一个 Jev“是否组队”分类器。
+Consider delegation when a task can be described, executed, and accepted independently and parallelism or context isolation outweighs the handoff and review cost. Keep small fixes and discussion tightly coupled to the current context in the main thread. Do not add a separate Jev classifier for whether to form a team.
 
-### 3.2 主会话 effort
+### 3.2 Main-session effort
 
-以官方推荐起点为默认参照，按当前承担的认知工作调整，而非整个项目大小。明确低推理需求可降低；复杂取舍、原因分析和结果冲突可提高；信息不足时不强行偏移。同回合稳定。具体档位、映射和未知输入处理在后续决策契约中定义；暂不增加只升不降、固定冷却等状态机。
+Use the official recommended starting point as the default reference and adjust for the cognitive work at hand, not the size of the whole project. Lower effort for clearly light reasoning; raise it for complex trade-offs, causal analysis, or conflicting results. Do not force an offset when evidence is insufficient. Keep effort stable within a turn. Define tiers, mappings, and unknown input handling in the later decision contract. Do not introduce escalation-only or fixed cooldown state machines yet.
 
-### 3.3 子模型能力与 effort 分离
+### 3.3 Separate child-model capability and effort
 
-先选择有合理把握胜任任务的模型能力，再确定推理投入。轻量模型先以其官方推荐 effort 起点验证，不自动再次降低 effort。可验证性越强，越可积极试用轻量模型；风险通过权限、验收和确认控制，不直接当作推理难度。
+First choose a model reasonably capable of doing the work, then decide how much reasoning to invest. Test lighter models at their official recommended effort before making any further reduction; do not lower effort again automatically. The easier the result is to verify, the more readily a lighter model can be tried. Control risk with permissions, acceptance, and confirmation rather than treating it as reasoning difficulty.
 
-- 明确、成熟、可直接验证的执行任务：优先轻量模型。
-- 范围可控但需要探索推断的任务：选择足够能力的模型。
-- 歧义大、多步推断、困难调试、独立审查：允许强模型。
+- Clear execution with mature procedures and directly verifiable results: prefer a lightweight model.
+- Bounded work that still requires exploration and inference: select a sufficiently capable model.
+- High ambiguity, multi-step inference, difficult debugging, or independent review: allow a strong model.
 
-这不是新的三档 rubric，也不意味着必须两次调用 Jev；输出维度与请求次数分别设计。
+This is not a new three-tier rubric, nor does it imply two Jev calls. Design output dimensions and request count separately.
 
-### 3.4 验收与升级
+### 3.4 Acceptance and escalation
 
-主模型依据执行证据验收。描述不清先补描述，缺信息先补上下文，漏核验/浅尝辄止考虑加 effort，充分尝试仍失败考虑更强子模型。网络与限流不视为能力不足。升级有预算和停止条件，具体上限在规则确认阶段确定，不通过初始分类自动断言成功。
+The main model accepts results based on execution evidence. Clarify an unclear brief first, add missing context first, consider more effort for skipped verification or a superficial attempt, and consider a stronger child model if a thorough attempt still fails. Do not treat network errors or rate limiting as insufficient capability. Escalation has a budget and stopping conditions; set the exact limits when confirming the rules. Do not use initial classification to assert success automatically.
 
-## 4. 创建路径的真实能力差异
+## 4. What each creation path actually supports
 
-以下仅依据当前会话暴露的工具 schema，不代表所有宿主版本，也不证明已经找到扩展点：
+This table is based only on the tool schemas exposed in the current session. It does not cover all host versions or establish that extension points have been found:
 
-| 路径 | 当前创建接口 | 现有“推荐后传参”是否够用 | 后续必须验证 |
+| Path | Current creation interface | Is recommending and then passing parameters enough? | What still needs verification |
 |---|---|---|---|
-| subagent | 暴露 provider/model/reasoning_effort | 接口上可表达，仍需核验实际生效 | 传参、显式指定优先级、实际请求配置 |
-| subagent_fork | 未暴露上述参数 | 不够 | 官方创建/首次请求扩展点，继承与前缀限制 |
-| spawn_teammate | 未暴露上述参数 | 不够 | 官方扩展点、任务到成员的绑定、首个请求配置 |
+| subagent | Exposes provider/model/reasoning_effort | Expressible through the interface, but actual application needs verification | Parameter passing, explicit selection precedence, actual request configuration |
+| subagent_fork | Does not expose those parameters | No | Official extension points for creation/first request, inheritance and prefix restrictions |
+| spawn_teammate | Does not expose those parameters | No | Official extension points, binding tasks to teammates, first-request configuration |
 
-AUTO 的关键增量是补出默认继承路径上的异构执行能力，而非仅让主 Agent 重复一次它已能表达的选择。主 Agent 能决定派发，不等于创建接口允许它选择资源。
+AUTO's main contribution is heterogeneous execution on paths that currently default to inheritance, not making the main agent repeat a choice it can already express. Being able to delegate does not mean the creation interface lets the agent select resources.
 
-不得以 route_subagent 返回了推荐就声称 Teams/fork 已覆盖。没有可靠接入点的路径明确标为不支持；不静默绕过用户限制。长驻 teammate 的创建时选配与后续换任务重选分开设计，首版不默认每条消息重路由。
+Do not claim Teams/fork coverage just because route_subagent returns a recommendation. Mark paths with no reliable integration point as unsupported, and do not silently bypass user constraints. Design initial selection for long-lived teammates separately from reselection when they take on a new task. The first version does not reroute every message by default.
 
-## 5. 策略演练案例
+## 5. Strategy examples
 
-| 场景 | 组织方式 | 资源策略与理由 |
+| Scenario | How to organize it | Resource strategy and rationale |
 |---|---|---|
-| 上下文齐全的一行修改 | 主模型直接做 | 派发成本高于收益；低推理需求可降低 effort |
-| 规则明确且有测试的批量迁移 | Agent 划分独立任务 | 轻量 worker + 推荐 effort 起点；量大不等于能力要求高 |
-| 明确字段提取并附来源 | 独立子任务 | 轻量优先，主模型核验来源与格式 |
-| 冲突资料的因果判断 | 独立调查或主模型 | 足够强的模型，按深度加 effort |
-| 未知原因的跨模块 bug | 主模型组织调查 | 不默认降模；并行假设由 Agent 决定 |
-| 复杂实现后的独立 review | 独立 reviewer | 以审查能力为先，不因子任务身份降模 |
-| 多个结果的整合 | 主模型 | 按冲突和整合难度，不继承项目总难度 |
-| 高后果的简单操作 | 主模型控制权限和验收 | 风险不直接映射高 effort |
+| One-line change with full context | Main model does it directly | Handoff costs outweigh the benefit; lighter reasoning may justify lower effort |
+| Batch migration with clear rules and tests | Agent creates independent tasks | Lightweight workers at recommended effort; volume does not imply higher capability requirements |
+| Extract clearly specified fields with citations | Independent subtask | Prefer lightweight; main model verifies sources and format |
+| Causal judgement across conflicting sources | Independent investigation or main model | Use a sufficiently strong model and raise effort as depth warrants |
+| Cross-module bug with unknown cause | Main model organizes the investigation | Do not downgrade by default; the agent decides which hypotheses to explore in parallel |
+| Independent review after a complex implementation | Independent reviewer | Prioritize review capability; do not downgrade merely because it is a subtask |
+| Integration of multiple results | Main model | Judge conflict and integration difficulty, not the total difficulty of the project |
+| Simple action with serious consequences | Main model controls permissions and acceptance | Risk does not map directly to high effort |
 
-## 6. 修订后的推进顺序
+## 6. Revised roadmap
 
-1. **策略定稿**：用以上案例与反例确认派发边界、模型能力、effort、未知情况与升级规则。此阶段不先改 rubric。
-2. **Jev 决策契约**：分别定义主会话与子任务的输入、问题、输出、信息不足处理及确定性映射。主回合只能依赖本轮推理前已有信号；子任务可使用主模型已经写清的目标、范围、输出和验收。
-3. **宿主能力核验**：只读检查三条创建路径的正式扩展点，明确能覆盖的路径及实现边界。此项与策略细化可并行，但不以宿主接口反推策略。
-4. **创建独立 OpenSpec change**：将确认策略、接入范围和验收条件写为提案，与既有发布 change 分开；再进入实现。
-5. **实现与分层验证**：先离线契约与路由集成测试，再经明确预算的小规模真实任务对照；验证实际模型与 effort，而非只验证推荐。
-6. **根据证据决定上线**：保留回滚与原继承行为，未通过验收不替换默认策略。
+1. **Finalize the strategy**: Use these examples and counterexamples to confirm delegation boundaries, model capability, effort, unknown cases, and escalation rules. Do not start by changing the rubric.
+2. **Define the Jev decision contract**: Specify inputs, questions, outputs, insufficient-input handling, and deterministic mappings separately for main sessions and subtasks. The main turn can rely only on signals available before that turn's reasoning. Subtasks can use the goal, scope, output, and acceptance criteria the main model has already written down.
+3. **Verify host capability**: Inspect the official extension points for all three creation paths read-only, and identify supported paths and implementation boundaries. This can run alongside strategy refinement, but host interfaces must not dictate the strategy.
+4. **Create a separate OpenSpec change**: Propose the agreed strategy, integration scope, and acceptance conditions separately from the existing release change, then implement it.
+5. **Implement and verify in layers**: Start with offline contract and routing integration tests, then compare a small set of real tasks under an explicit budget. Verify actual model and effort, not just the recommendation.
+6. **Use the evidence to decide whether to roll out**: Preserve rollback and original inheritance behavior. Do not replace the default strategy unless acceptance passes.
 
-## 7. 分开验证三件事
+## 7. Verify three things separately
 
-- **策略质量**：假设每次都正确执行策略，任务最终质量、总消耗和耗时是否改善？保留独立任务集，包含验收与重试成本。
-- **Jev 忠实度**：是否按已确认策略作出期望判断？单独测错误类型、稳定性、分类成本与延迟。快速判断不等于正确策略。
-- **接入正确性**：每种支持的创建路径是否真正使用选定 model/effort？MANUAL、显式指定、同回合稳定、失败与不支持路径是否符合契约？
+- **Strategy quality**: If the strategy is always executed correctly, does it improve final task quality, total usage, and elapsed time? Keep an independent task set and include acceptance and retry costs.
+- **Jev fidelity**: Does it make the expected judgement under the agreed strategy? Measure error types, stability, classification cost, and latency separately. Fast judgements are not evidence of a sound strategy.
+- **Integration correctness**: Does every supported creation path actually use the selected model/effort? Do MANUAL, explicit selections, same-turn stability, failures, and unsupported paths follow the contract?
 
-Jev 的价值不仅是体验和性能；误判会损害质量。但策略质量不能用 Jev 标签一致率代替，接入正确性也不能用推荐输出代替。
+Jev matters for more than user experience and performance; misclassification can hurt quality. Agreement on Jev labels is not a substitute for strategy quality, and a recommendation is not a substitute for verified integration.
 
-## 8. 参考与当前规范
+## 8. References and current specification
 
-- [核心诉求与差距](routing-intent-and-gaps.md)
-- [外部调研](routing-community-research-2026-10-24.md)：历史调研建议，实施优先级以本修订为准。
-- [现行规范](https://github.com/prgrmrwy/ohmydsh/blob/main/openspec/specs/auto-model-routing/spec.md)：仍描述当前行为，本稿不静默替换它。
-- [Claude Code model configuration](https://code.claude.com/docs/en/model-config.md)：opusplan 是规划阶段 Opus、执行阶段 Sonnet，不等于固定强主监督轻子。
-- [Claude Code subagents](https://code.claude.com/docs/en/sub-agents.md)：主模型根据职责描述委派。
-- [Claude Code Agent Teams](https://code.claude.com/docs/en/agent-teams.md)：Lead 组织共享任务与协作，不天然保证异构模型或低成本。
+- [Core requirements and gaps](routing-intent-and-gaps.md)
+- [External research](routing-community-research-2026-10-24.md): Historical recommendations; this revision sets implementation priorities.
+- [Current specification](https://github.com/prgrmrwy/ohmydsh/blob/main/openspec/specs/auto-model-routing/spec.md): Still describes current behavior; this draft does not silently replace it.
+- [Claude Code model configuration](https://code.claude.com/docs/en/model-config.md): opusplan uses Opus for planning and Sonnet for execution. It does not mean a fixed strong main model supervises a lightweight child.
+- [Claude Code subagents](https://code.claude.com/docs/en/sub-agents.md): The main model delegates based on role descriptions.
+- [Claude Code Agent Teams](https://code.claude.com/docs/en/agent-teams.md): The lead organizes shared tasks and collaboration; this does not inherently guarantee heterogeneous models or lower cost.

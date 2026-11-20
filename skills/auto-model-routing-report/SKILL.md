@@ -1,56 +1,56 @@
 ---
 name: auto-model-routing-report
-description: 仅当用户明确要求评估 AUTO 效果、观察 AUTO 期间的 token 用量或判断分布，或直接点名 auto-model-routing-report 时使用：只读汇总本地 AUTO 决策记录与会话实际用量。不得主动执行或创建定时任务；会话处于 AUTO、普通 token 问题、路由判断或日常任务都不是触发条件。
+description: 'Use only when the user explicitly asks to evaluate the effectiveness of AUTO, observe token usage or the distribution of routing decisions during AUTO, or names auto-model-routing-report directly: summarize local AUTO decision records and actual session usage without writing anything. Do not run it proactively or create scheduled tasks; being in AUTO, general token questions, routing decisions, and routine tasks are not triggers.'
 ---
 
-# AUTO 用量观察报告
+# AUTO Usage Observation Report
 
-**仅当用户明确要求时使用。** 不得主动执行，也不得创建定时任务或后台采集。会话处于 AUTO、用户询问 token 计价、讨论路由策略，都不是使用本 skill 的理由。
+**Use only when the user explicitly asks.** Do not run it proactively, create scheduled tasks, or collect data in the background. A session being in AUTO, a user asking about token pricing, or a discussion of routing strategy is not a reason to use this skill.
 
-## 它能回答什么
+## What it can answer
 
-- AUTO 期间做了哪些决策，按策略家族（`group`）、模型和推理深度（depth）分组，以及这些决策实际消耗了多少 token。
-  - `group` 为策略家族 id（如 `claude`、`codex`）。0.5.0 之前写入的记录保留原有分组标识，`historical: true`；没有快照的记录归入 `unknown`。历史组与家族组不要合并比较。
-- 数据覆盖情况：哪些回合没有记录，以及有多少会话处于 AUTO 但完全没有记录。
-- 对照首个 AUTO 记录之前的回合，effort 起点发生了什么变化。
+- Which decisions were made during AUTO, grouped by strategy family (`group`), model, and reasoning depth (depth), and how many tokens those decisions actually consumed.
+  - `group` is the strategy family ID (e.g. `claude` or `codex`). Records written before 0.5.0 retain their original group identifiers and have `historical: true`; records without a snapshot go into `unknown`. Do not pool historical groups with family groups for comparison.
+- Data coverage: which turns lack a record, and how many sessions are in AUTO but have no records at all.
+- How the starting effort changed relative to the turns before the first AUTO record.
 
-**它不能回答“AUTO 省了多少”**：这是观察数据，不是受控对照。
+**It cannot answer "How much did AUTO save?"** The data is observational, not a controlled comparison.
 
-## 步骤
+## Steps
 
-1. 运行（只读：不写文件、不联网、不调用模型）：
+1. Run (read-only: no file writes, network access, or model calls):
 
    ```bash
-   node "<插件目录>/lib/usage-report.js"                     # 全部数据
-   node "<插件目录>/lib/usage-report.js" --since 2026-11-01  # 从本地时区该日 00:00 起
+   node "<plugin-directory>/lib/usage-report.js"                     # All data
+   node "<plugin-directory>/lib/usage-report.js" --since 2026-11-01  # From 00:00 on that date in the local time zone
    ```
 
-   `<插件目录>` 是 `dsh-auto-model-routing` 包所在的目录。`$DSH_HOME` 未设置时，默认读取 `~/.dsh`。
+   `<plugin-directory>` is the directory containing the `dsh-auto-model-routing` package. If `$DSH_HOME` is unset, the script reads `~/.dsh` by default.
 
-2. **先检查数据质量，再看数字：**
-   - `failures` 中任一项明显不为 0，或 `coverage.unlinkedBindings` 偏高时，说明日志格式可能已随 DSH 升级而变化。此时停止解读，先告诉用户需要核对。
-   - `failures.tail-incomplete` 为 1 通常是正常的，因为当前会话的日志还在写入。
+2. **Check data quality before looking at the numbers:**
+   - If any item in `failures` is clearly nonzero, or `coverage.unlinkedBindings` is unusually high, the log format may have changed with a DSH upgrade. Stop interpreting the results and first tell the user that the format needs to be checked.
+   - A `failures.tail-incomplete` value of 1 is usually normal because the current session's log is still being written.
 
-3. 转述结果时**保留以下含义，不得放大**：
-   - `conclusion: insufficient-sample` → “样本不足，尚不能判断”。门槛是 ≥20 个决策，且来自 ≥3 个会话。
-   - `caveats` 中的每一项都要用一句话说明：
-     - `observational-not-controlled`：观察数据，不是受控对照；判断因果需要专门对照实验。
-     - `scope-main-session-assistant-calls-only`：不含子会话、压缩摘要、标题生成、Jev 判断和失败重试的用量，因此不能推出“节省”。
-     - `only-applied-decisions-recorded`：只记录实际生效的决策，已统计部分可能偏向某类回合；`coverage.turnsWithoutRecord` 显示缺口大小。
-     - `token-semantics-differ-by-provider`：不同 provider 的 token 口径可能不同，不要跨模型比较。
-     - `reference-before-auto-effort-only-confounded`：`referenceBeforeAuto` 只用于看 effort 起点的变化；它受会话阶段、任务类型、模型切换等因素混杂，不能当作对照组。
-     - `mode-history-not-persisted`：会话模式的切换历史没有保存，会话计数只是粗略参考。
-     - `implicit-ok-not-appropriateness`：隐式无异议不等于分配合适，不能计作显式好评。
-     - `exposure-not-proof-of-reading`：前台可见 3 秒只是曝光，不证明用户读过。
-     - `historical-exposure-unknown`：上线前的曝光未知，不回填。
-     - `exposure-after-continuation-excluded`：下一用户回合之后才出现的曝光不算，避免翻看旧记录制造认可。
-   - `implicit.counts` 按优先级把决策分为显式评价、负向行为、隐式无异议、无定论、未曝光，五类合计为决策数；`implicit.negative` 的两个原因可重叠。`implicit.exposedExplicit` 是有效曝光且有显式评价的参照，不是准确率。
-   - 不要自行计算节省百分比，不要说“质量不变”，也不要把“首个记录之前”称为 MANUAL。
-   - token 均值的分母是**出现该字段的调用数**（`present`）；值为 `null` 表示该字段从未出现，不是 0。
+3. When relaying the results, **preserve the following meanings without overstating them**:
+   - `conclusion: insufficient-sample` → "The sample is too small to draw a conclusion yet." The threshold is ≥20 decisions from ≥3 sessions.
+   - Explain each item in `caveats` in one sentence:
+     - `observational-not-controlled`: The data is observational rather than a controlled comparison; establishing causality requires a dedicated controlled experiment.
+     - `scope-main-session-assistant-calls-only`: Usage from child sessions, compaction summaries, title generation, Jev decisions, and retries after failures is excluded, so no savings can be inferred.
+     - `only-applied-decisions-recorded`: Only decisions that took effect are recorded, so the results may be skewed toward certain kinds of turns; `coverage.turnsWithoutRecord` shows the size of the gap.
+     - `token-semantics-differ-by-provider`: Providers may count tokens differently, so do not compare across models.
+     - `reference-before-auto-effort-only-confounded`: Use `referenceBeforeAuto` only to see how starting effort changed; it is confounded by factors such as session stage, task type, and model switches, and cannot serve as a control group.
+     - `mode-history-not-persisted`: Session mode changes are not saved, so session counts are only a rough reference.
+     - `implicit-ok-not-appropriateness`: An implicit lack of objection does not mean the assignment was appropriate and cannot count as explicit positive feedback.
+     - `exposure-not-proof-of-reading`: Being visible in the foreground for 3 seconds counts only as exposure and does not prove the user read it.
+     - `historical-exposure-unknown`: Exposure before rollout is unknown and is not backfilled.
+     - `exposure-after-continuation-excluded`: Exposure that first occurs after the next user turn does not count, so reviewing old records cannot create apparent approval.
+   - `implicit.counts` classifies decisions in priority order as explicit feedback, negative behavior, implicit lack of objection, inconclusive, or unexposed; the five categories sum to the number of decisions. The two reasons in `implicit.negative` can overlap. `implicit.exposedExplicit` is a reference for decisions with both valid exposure and explicit feedback, not an accuracy rate.
+   - Do not calculate a savings percentage yourself, claim "quality was unchanged," or call the period "before the first record" MANUAL.
+   - The denominator for token averages is **the number of calls where the field was present** (`present`); `null` means the field never appeared, not that its value was 0.
 
-4. 如果要把报告原文贴到当前会话之外，例如飞书或 issue，**先请用户确认**。模型名、provider 名可能包含内部信息。
+4. If you want to paste the report verbatim outside the current session, such as in Feishu or an issue, **ask the user for confirmation first**. Model and provider names may contain internal information.
 
-## 前提
+## Premises
 
-- 报告每次都从原始记录和会话日志重新计算，不保存快照。用户删除旧会话后，对应历史无法再统计。
-- 早期四档判档账本 `judgements.jsonl` 只用来定位每个会话首个 AUTO 记录，本报告不统计其中的标注。
+- The report is recalculated from raw records and session logs each time; no snapshots are saved. After a user deletes old sessions, their history can no longer be included in the statistics.
+- The early four-tier judgment ledger `judgements.jsonl` is used only to locate the first AUTO record in each session; the report does not count its annotations.

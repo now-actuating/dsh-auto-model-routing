@@ -1,8 +1,8 @@
 export const DECISION_SERVICES = {
   openrouter: { label: 'OpenRouter', endpoint: 'https://openrouter.ai/api/alpha/decisions', model: 'typesafe/jev-1.13', credential: 'OPENROUTER_API_KEY' },
-  typesafe: { label: 'TypeSafe 官方', endpoint: 'https://api.typesafe.ai/v1/systemone', model: 'jev-1.13.0', credential: 'TYPESAFE_API_KEY' },
+  typesafe: { label: 'TypeSafe official', endpoint: 'https://api.typesafe.ai/v1/systemone', model: 'jev-1.13.0', credential: 'TYPESAFE_API_KEY' },
   concentrate: { label: 'Concentrate', endpoint: 'https://api.concentrate.ai/v1/systemone', model: 'jev-1.13.0', credential: 'CONCENTRATE_API_KEY' },
-  custom: { label: '自定义 System One', endpoint: '', model: 'jev-1.13.0', credential: 'AUTO_DECISION_CUSTOM_API_KEY' },
+  custom: { label: 'Custom System One', endpoint: '', model: 'jev-1.13.0', credential: 'AUTO_DECISION_CUSTOM_API_KEY' },
 } as const
 export type DecisionProvider = keyof typeof DECISION_SERVICES
 export interface DecisionConfig { provider: DecisionProvider; model?: string | undefined; endpoint?: string | undefined }

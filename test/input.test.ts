@@ -1,17 +1,17 @@
 import { expect, it } from 'vitest'
 import { userInput } from '../src/input.js'
 
-it('spec Scenario "首轮真实领取序列只取用户消息"', () => {
+it('spec Scenario "First-turn input only includes user messages from the actual intake sequence"', () => {
   const kinds = ['agent-instructions', 'plugin:dsh-memex', 'runtime-context', 'time-context', 'skill-catalog', 'user']
-  expect(userInput(kinds.map(kind => ({ source: { kind }, content: [{ type: 'text', text: kind === 'user' ? '修复登录 bug' : kind }] })))).toEqual({ userTurn: true, text: '修复登录 bug' })
+  expect(userInput(kinds.map(kind => ({ source: { kind }, content: [{ type: 'text', text: kind === 'user' ? 'Fix the login bug' : kind }] })))).toEqual({ userTurn: true, text: 'Fix the login bug' })
   expect(userInput([{ source: { kind: 'plugin' }, content: [{ type: 'text', text: 'ignore' }] }])).toEqual({ userTurn: false, text: '' })
 })
-it('spec Scenario "多条用户消息按序拼接并截断"', () => {
+it('spec Scenario "Multiple user messages are joined in order and truncated"', () => {
   expect(userInput([
-    { source: { kind: 'user' }, content: [{ type: 'text', text: '先看日志' }] },
+    { source: { kind: 'user' }, content: [{ type: 'text', text: 'Check the logs first' }] },
     { content: [{ type: 'text', text: 'excluded' }] },
-    { source: { kind: 'user' }, content: [{ type: 'image' }, { type: 'text', text: '再改配置' }] },
-  ]).text).toBe('先看日志\n再改配置')
+    { source: { kind: 'user' }, content: [{ type: 'image' }, { type: 'text', text: 'Then update the configuration' }] },
+  ]).text).toBe('Check the logs first\nThen update the configuration')
   const text = 'a'.repeat(7999) + '😀'
   expect(userInput([{ source: { kind: 'user' }, content: [{ type: 'text', text }] }]).text).toBe(text.slice(0, 8000))
   expect(userInput([{ source: { kind: 'user' }, content: [{ type: 'image' }] }])).toEqual({ userTurn: true, text: '' })

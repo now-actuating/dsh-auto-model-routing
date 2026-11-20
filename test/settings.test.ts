@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { DEFAULT_SETTINGS, SettingsStore, SettingsValidationError } from '../src/settings.js'
 import { closeHarness, depth, harness } from './host-harness.js'
 function fixture() { const dir=mkdtempSync(join(tmpdir(),'routing-settings-')); const path=join(dir,'config.json'); return {dir,path,store:new SettingsStore(path)} }
-it('spec Scenario "设置文件损坏"',()=>{
+it('spec Scenario "Corrupt settings file"',()=>{
  const {path,store}=fixture()
  expect(store.read()).toMatchObject({status:'missing',settings:DEFAULT_SETTINGS})
  writeFileSync(path,'{bad')
@@ -19,7 +19,7 @@ it('spec Scenario "设置文件损坏"',()=>{
  writeFileSync(path,JSON.stringify({preset:'effort-as-verification'}))
  expect(store.read()).toMatchObject({status:'ok',settings:{preset:'effort-as-verification'}})
 })
-it('spec Scenario "保存普通设置"',()=>{
+it('spec Scenario "Save ordinary settings"',()=>{
  const {path,dir,store}=fixture(); writeFileSync(path,'{"decisionToast":false}')
  store.save({defaultMode:'AUTO',jevTimeoutMs:2500})
  expect(JSON.parse(readFileSync(path,'utf8'))).toEqual({decisionToast:false,defaultMode:'AUTO',jevTimeoutMs:2500})
@@ -29,17 +29,17 @@ it('spec Scenario "保存普通设置"',()=>{
  // The next read (what the next request or new session uses) reflects the saved values without a restart.
  expect(store.read().settings).toMatchObject({defaultMode:'AUTO',jevTimeoutMs:2500,decisionToast:false})
 })
-it.each([{jevTimeoutMs:9000},{jevTimeoutMs:999},{jevTimeoutMs:8001},{jevTimeoutMs:1500.5},{jevTimeoutMs:1000.5},{preset:'does-not-exist'},{effortCap:'max'},{defaultMode:'auto'},{foo:1},{apiKey:'do-not-copy'},{mainEfforts:{}}])('spec Scenario "非法设置整体拒绝": %j',patch=>{
+it.each([{jevTimeoutMs:9000},{jevTimeoutMs:999},{jevTimeoutMs:8001},{jevTimeoutMs:1500.5},{jevTimeoutMs:1000.5},{preset:'does-not-exist'},{effortCap:'max'},{defaultMode:'auto'},{foo:1},{apiKey:'do-not-copy'},{mainEfforts:{}}])('spec Scenario "Reject invalid settings as a whole": %j',patch=>{
  const {path,store}=fixture(); writeFileSync(path,'{"decisionToast":false}')
  expect(()=>store.save(patch)).toThrow(SettingsValidationError)
  expect(readFileSync(path,'utf8')).toBe('{"decisionToast":false}')
 })
-it.each([1000,6000,8000])('spec Scenario "非法设置整体拒绝": valid deadline %i is saved',value=>{
+it.each([1000,6000,8000])('spec Scenario "Reject invalid settings as a whole": valid deadline %i is saved',value=>{
  const {path,store}=fixture(); writeFileSync(path,'{"decisionToast":false}')
  store.save({jevTimeoutMs:value})
  expect(JSON.parse(readFileSync(path,'utf8'))).toEqual({decisionToast:false,jevTimeoutMs:value})
 })
-it('spec Scenario "提交旧映射字段被拒"',()=>{
+it('spec Scenario "Submitting old mapping fields is rejected"',()=>{
  const {path,store}=fixture(); writeFileSync(path,'{"defaultMode":"AUTO"}')
  for (const patch of [{policy:'legacy'},{mainEfforts:{claude:{simple:'low'}}},{childRoutes:{}}]) {
   let error: unknown
@@ -49,7 +49,7 @@ it('spec Scenario "提交旧映射字段被拒"',()=>{
   expect(readFileSync(path,'utf8')).toBe('{"defaultMode":"AUTO"}')
  }
 })
-it('spec Scenario "旧映射配置不影响路由并在保存时移除"', async () => {
+it('spec Scenario "Old mapping settings do not affect routing and are removed on save"', async () => {
  const config = { policy: 'legacy', decisionToast: true, mainEfforts: { codex: { simple: 'medium' } }, childRoutes: { claude: { simple: { model: 'claude-haiku-5-5', reasoningEffort: 'high' } } } }
  const h = await harness(depth('baseline'), { config })
  try {

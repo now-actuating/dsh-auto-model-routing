@@ -14,7 +14,7 @@ it('registers a bounded settings contribution with disposer-owned navigation ada
   }
   apply(ctx as never)
   const settings = registrations.find(item => item.name === 'settings.section')!
-  expect({ id: settings.id, label: settings.label?.(), order: settings.order }).toEqual({ id: 'auto-model-routing', label: '自动模型路由', order: 300 })
+  expect({ id: settings.id, label: settings.label?.(), order: settings.order }).toEqual({ id: 'auto-model-routing', label: 'Auto model routing', order: 300 })
   // Two effects: the locale dictionaries and the navigation-icon adapter.
   expect(effects).toHaveLength(2)
   const source = readFileSync(new URL('../src/client/settings-section.ts', import.meta.url), 'utf8')
