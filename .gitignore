@@ -1,4 +1,5 @@
 node_modules/
-lib/
 *.tgz
 package-lock.json
+
+# lib/ is intentionally committed: DSH git installs do not run build scripts.
