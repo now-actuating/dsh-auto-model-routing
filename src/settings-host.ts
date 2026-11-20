@@ -8,11 +8,12 @@ import type { RoutingCatalog } from './settings-contract.js'
 import { JevClient } from './jev.js'
 import { DECISION_SERVICES, type DecisionProvider } from './decision-service.js'
 import { resolvePreset } from './presets/index.js'
+import { decisionModelCatalog } from './decision-models.js'
 const keyRef = (provider: DecisionProvider = 'openrouter') => credentialRef(DECISION_SERVICES[provider].credential)
 interface AllowlistService { current(): { enabled: boolean; allowedModels: { provider: string; model: string }[] } }
 
 /** Only the fixed credential reference and public catalog metadata cross this adapter. */
-export function settingsHost(ctx: Context, store: SettingsStore) {
+export function settingsHost(ctx: Context, store: SettingsStore, decisionModels = decisionModelCatalog()) {
   const environment = launchEnvironmentOf(ctx)
   const credentials = () => ctx.get('credentials')
   const allowlist = (): RoutingCatalog['childAllowlist'] => {
@@ -56,8 +57,12 @@ export function settingsHost(ctx: Context, store: SettingsStore) {
     const result = store.read()
     return { settings: result.settings, defaults: DEFAULT_SETTINGS, configStatus: result.status, issues: result.issues, deprecated: result.deprecated, key: await keyStatus(), ...current }
   }
-  const endpoint = async (operation: 'settings' | 'saveSettings' | 'setKey' | 'testDecision', body: unknown): Promise<Response> => {
+  const endpoint = async (operation: 'settings' | 'saveSettings' | 'setKey' | 'testDecision' | 'decisionModels', body: unknown): Promise<Response> => {
     if (operation === 'settings') return Response.json(await read())
+    if (operation === 'decisionModels') {
+      if (body !== undefined && body !== null && (typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => k !== 'refresh') || ('refresh' in body && typeof body.refresh !== 'boolean'))) return Response.json({ error: '无效的模型列表请求' }, { status: 400 })
+      return Response.json(await decisionModels(Boolean((body as { refresh?: boolean } | null | undefined)?.refresh)))
+    }
     if (operation === 'testDecision') {
       const client = new JevClient({ get: async name => credentials() ? credentials()!.resolve(credentialRef(name)) : environment.get(name) }, undefined, 8000, () => store.read().settings.decisionService)
       const preset = resolvePreset(store.read().settings.preset)

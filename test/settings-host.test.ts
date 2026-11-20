@@ -93,3 +93,15 @@ it('spec Scenario "测试连接使用所选预设"', async () => {
     expect((h.jev.bodies[1] as { questions: unknown }).questions).toEqual(resolvePreset('reasoning-depth').rubric)
   } finally { await closeHarness() }
 })
+it('decisionModels endpoint forwards refresh and rejects malformed requests',async()=>{
+ const ctx=new Context()
+ ctx.provide('launchEnvironment',createLaunchEnvironmentSnapshot([{source:'process',values:{}}]) as never)
+ ctx.provide('llm',{listProviders:()=>[],listModels:async()=>[],resolveModelInfo:async()=>({})} as never)
+ const seen:boolean[]=[]
+ const host=settingsHost(ctx,new SettingsStore(join(mkdtempSync(join(tmpdir(),'amr-models-')),'config.json')),async(refresh=false)=>{seen.push(refresh);return {status:'ok',models:[{id:'a/b:free',name:'AB'}],fetchedAt:1}})
+ expect(await (await host.endpoint('decisionModels',{refresh:true})).json()).toMatchObject({status:'ok',models:[{id:'a/b:free'}]})
+ expect(await (await host.endpoint('decisionModels',{})).json()).toMatchObject({status:'ok'})
+ expect(seen).toEqual([true,false])
+ expect((await host.endpoint('decisionModels',{refresh:'yes'})).status).toBe(400)
+ expect((await host.endpoint('decisionModels',{other:1})).status).toBe(400)
+})

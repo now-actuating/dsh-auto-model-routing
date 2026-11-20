@@ -93,6 +93,11 @@ export declare const en: {
     serviceSwitchNote: string;
     credentialRef: string;
     decisionModel: string;
+    freeModelsHint: string;
+    modelsLoading: string;
+    modelsFailed: string;
+    modelsEmpty: string;
+    modelNotInFreeList: string;
     compatibleEndpoint: string;
     customEndpointHint: string;
     endpointLine: string;

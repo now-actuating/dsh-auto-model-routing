@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1+mod.2 — 2026-11-20 (fork)
+
+- The OpenRouter decision-model menu is filled live by the Host (`auto-model-routing.decisionModels`) from OpenRouter's public model API: only `decisions` models on `/api/alpha/decisions` whose catalog prices are all zero, not expired, and with at least one available (status 0) zero-priced endpoint. Loaded on settings mount, re-fetched (cache bypass) whenever the menu opens; 30 s cache otherwise. A saved model missing from the list stays selectable and is marked; failures show an inline disabled row.
+
 ## 0.7.1 — 2026-11-07 (DSH 0.2.2 line)
 
 - **BREAKING: requires DSH `>=0.2.2-rc.1 <0.3.0`.** `engines.dsh` and every `@deepseek-ai/dsh-*` peer floor moved from `0.2.0-rc.2` to `0.2.2-rc.1`; the other repository packages keep their floors. Version lines: DSH 0.2.0–0.2.1 hosts stay on the published 0.7.0 / 0.6.x (pin 0.7.0 exactly); DSH 0.2.2 and later use 0.7.1+. There is deliberately no dual-path build.

@@ -1,6 +1,6 @@
 {
   "name": "dsh-auto-model-routing",
-  "version": "0.7.1+mod.1",
+  "version": "0.7.1+mod.2",
   "description": "DeepSeek Harness plugin: independent Jev capability and effort decisions, enforced fresh-child routes, decision visibility and allocation feedback",
   "license": "MIT",
   "author": "prgrmrwy",
@@ -63,7 +63,7 @@
       "upstreamRepository": "https://github.com/prgrmrwy/dsh-auto-model-routing.git",
       "upstreamVersion": "0.7.1",
       "upstreamCommit": "a220176b90e775956e8339f29c713d4ad1b2ca94",
-      "revision": 1
+      "revision": 2
     }
   },
   "scripts": {

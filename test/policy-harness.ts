@@ -138,7 +138,7 @@ export async function harness(magpie: false | 'dsh-magpie-connect' | 'dsh-magpie
   let pluginConfig: Plugin.Config = { home, jevBase: jev.base, ...(strategies ? { strategies } : {}) }
   let plugin = await ctx.plugin(Plugin, pluginConfig)
   // The Host routes need both the connection and the session controller; the "missing controller" case mounts neither.
-  if (selectFails !== 'missing') await expect.poll(() => routes.size).toBe(9)
+  if (selectFails !== 'missing') await expect.poll(() => routes.size).toBe(10)
   const parent = await ctx.agents.create({ sessionId: SessionId('parent'), agentOptions: picked }); handles.push(parent)
   // 0.2.2: the official selection is the agent's own `model` (no controller-side pending pick / consume).
   if (pendingPick) parent.agent.model.select(picked)

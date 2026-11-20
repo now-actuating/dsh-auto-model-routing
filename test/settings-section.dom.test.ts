@@ -21,7 +21,7 @@ it('ordinary settings save a sparse patch and never select a session model', asy
   expect(host.querySelector('[role=tablist]')).toBeNull()
   await click('AUTO'); await click('保存')
   expect(calls.find(c => c.endpoint.endsWith('saveSettings'))?.payload).toEqual({ defaultMode: 'AUTO' })
-  expect(calls.every(c => /^auto-model-routing\.(settings|saveSettings|setKey)$/.test(c.endpoint))).toBe(true)
+  expect(calls.every(c => /^auto-model-routing\.(settings|saveSettings|setKey|decisionModels)$/.test(c.endpoint))).toBe(true)
 })
 it('connection button shows pending and local success or failure feedback',async()=>{
  let finish:((value:any)=>void)|undefined
@@ -107,7 +107,7 @@ it('spec Scenario "策略说明来自规则文件与注册表"',async()=>{
   expect(host.querySelector('[role=tablist]')).toBeNull()
   details.open=true;details.dispatchEvent(new Event('toggle'))
   expect(details.open).toBe(true)
-  expect(calls).toEqual(['auto-model-routing.settings'])
+  expect(calls).toEqual(['auto-model-routing.settings','auto-model-routing.decisionModels'])
   expect((Array.from(host.querySelectorAll('button')).find(b=>b.textContent==='保存') as HTMLButtonElement).disabled).toBe(true)
 })
 it('spec Scenario "独立保存结果与不泄漏"', async () => {
@@ -130,4 +130,25 @@ it('unavailable child service and readonly environment key still allow unrelated
   expect(host.textContent).toContain('重启')
   await click('AUTO'); await click('保存')
   expect(calls).toContain('auto-model-routing.saveSettings')
+})
+
+it('OpenRouter model menu is filled from the Host free-model query on load and refreshed on open',async()=>{
+ const calls:{endpoint:string;payload:any}[]=[]
+ let models=[{id:'perplexity/pplx-decider-v1.3:free',name:'P'}]
+ const rpc={call:async(_:string,endpoint:string,payload:any)=>{calls.push({endpoint,payload});if(endpoint.endsWith('decisionModels'))return {ok:true,value:{status:'ok',models,fetchedAt:1}};return {ok:true,value:view()}}}
+ await act(async()=>root.render(h(RoutingSettings,{rpc,ui})))
+ expect(calls.filter(c=>c.endpoint.endsWith('decisionModels')).map(c=>c.payload)).toEqual([{refresh:false}])
+ models=[...models,{id:'respan/span-01-lite:free',name:'R'}]
+ await clickLabel('决策模型')
+ expect(calls.filter(c=>c.endpoint.endsWith('decisionModels')).map(c=>c.payload)).toEqual([{refresh:false},{refresh:true}])
+ const labels=Array.from(document.querySelectorAll('[role=menu] button')).map(b=>b.textContent)
+ expect(labels).toEqual(['perplexity/pplx-decider-v1.3:free','respan/span-01-lite:free','typesafe/jev-1.13 · 不在免费列表中'])
+ await click('respan/span-01-lite:free'); await click('保存')
+ expect(calls.find(c=>c.endpoint.endsWith('saveSettings'))?.payload).toEqual({decisionService:{provider:'openrouter',model:'respan/span-01-lite:free'}})
+})
+it('OpenRouter model menu reports a failed live query without inventing models',async()=>{
+ const rpc={call:async(_:string,endpoint:string)=>endpoint.endsWith('decisionModels')?{ok:true,value:{status:'failed',reason:'timeout',fetchedAt:1}}:{ok:true,value:view()}}
+ await act(async()=>root.render(h(RoutingSettings,{rpc,ui})))
+ await clickLabel('决策模型')
+ expect(Array.from(document.querySelectorAll('[role=menu] button')).map(b=>b.textContent)).toEqual(['typesafe/jev-1.13 · 不在免费列表中','无法加载模型列表；重新打开以重试'])
 })

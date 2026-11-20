@@ -1,9 +1,10 @@
-import { createElement as h, useEffect, useState } from 'react'
+import { createElement as h, useCallback, useEffect, useRef, useState } from 'react'
 import type { Rpc } from './control.js'
 import { AUTO_EFFORTS, type AutomaticEffort, type RoutingCatalog, type Settings, type SettingsIssue, type SettingsPatch } from '../settings-contract.js'
 import type { SettingsUi } from './settings-ui.js'
 import { DECISION_SERVICES, resolveDecisionService, type DecisionProvider } from '../decision-service.js'
 import type { JevCategory } from '../hints.js'
+import type { DecisionModelList } from '../decision-models.js'
 import { StrategyDetails, localized } from './strategy-details.js'
 import { PRESETS, resolvePreset } from '../presets/index.js'
 import { CATEGORY_HINT_KEYS, SERVICE_LABEL_KEYS, t } from './locales.js'
@@ -43,11 +44,22 @@ export function RoutingSettings({ rpc, ui }: { rpc: Rpc; ui: SettingsUi }) {
   const [message, setMessage] = useState('')
   const [failed, setFailed] = useState(false)
   const [saveIssues, setSaveIssues] = useState<SettingsIssue[]>([])
+  const [liveModels, setLiveModels] = useState<DecisionModelList | 'loading'>()
+  const modelRequest = useRef(0)
+  const loadModels = useCallback((refresh: boolean) => {
+    const id = ++modelRequest.current
+    setLiveModels('loading')
+    rpc.call('/api', 'auto-model-routing.decisionModels', { refresh }).then(
+      r => { if (modelRequest.current === id) setLiveModels(r.ok && (r.value as DecisionModelList | undefined)?.status ? r.value as DecisionModelList : { status: 'failed', reason: 'unavailable', fetchedAt: Date.now() }) },
+      () => { if (modelRequest.current === id) setLiveModels({ status: 'failed', reason: 'unavailable', fetchedAt: Date.now() }) })
+  }, [rpc])
   useEffect(() => {
     let live = true
     void request(rpc, 'settings').then(value => { if (live) setView(value) }, () => { if (live) setMessage(t('settingsReadFailed')) })
-    return () => { live = false }
-  }, [rpc])
+    // A page load (or settings refresh) fills the OpenRouter list from the Host's live query.
+    loadModels(false)
+    return () => { live = false; modelRequest.current++ }
+  }, [rpc, loadModels])
   if (!view) return h('div', { className: 'amr-settings', role: 'status' }, message || t('readingSettings'))
   const settings = { ...view.settings, ...patch }
   const cap = settings.effortCap
@@ -55,8 +67,15 @@ export function RoutingSettings({ rpc, ui }: { rpc: Rpc; ui: SettingsUi }) {
   const serviceConfig = settings.decisionService ?? { provider: 'openrouter' as const }
   const serviceProvider = serviceConfig.provider
   const decisionModel = serviceConfig.model ?? DECISION_SERVICES[serviceProvider].model
-  // Preset choices are documented snapshots, not a live availability claim.
-  const decisionModels = [...new Set([...(serviceProvider === 'openrouter' ? ['typesafe/jev-1.13'] : ['jev-1.13.0', 'jev-1.14.0']), decisionModel])]
+  // OpenRouter choices come from the Host's live free-model query; other presets stay documented snapshots.
+  const liveIds = liveModels && liveModels !== 'loading' && liveModels.status === 'ok' ? liveModels.models.map(m => m.id) : []
+  const decisionModels = [...new Set([...(serviceProvider === 'openrouter' ? liveIds : ['jev-1.13.0', 'jev-1.14.0']), decisionModel])]
+  const modelItems = serviceProvider !== 'openrouter' ? decisionModels.map(id => ({ id, label: id })) : [
+    ...decisionModels.map(id => ({ id, label: liveIds.includes(id) || liveModels === 'loading' || liveModels === undefined ? id : `${id} · ${t('modelNotInFreeList')}` })),
+    ...(liveModels === 'loading' || liveModels === undefined ? [{ id: '__amr-loading', label: t('modelsLoading'), disabled: true }]
+      : liveModels.status === 'failed' ? [{ id: '__amr-failed', label: t('modelsFailed'), disabled: true }]
+      : liveIds.length === 0 ? [{ id: '__amr-empty', label: t('modelsEmpty'), disabled: true }] : []),
+  ]
   const changingService = serviceProvider !== (view.settings.decisionService?.provider ?? 'openrouter')
   let invalidService = false
   try { resolveDecisionService(serviceConfig) } catch { invalidService = true }
@@ -102,10 +121,11 @@ export function RoutingSettings({ rpc, ui }: { rpc: Rpc; ui: SettingsUi }) {
         h('div', { className: 'amr-settings-row' }, h('span', null, t('decisionModel')), serviceProvider === 'custom'
           ? h('input', { className: 'amr-service-input', 'aria-label': t('decisionModel'), value: decisionModel, onChange: e => setPatch(old => ({ ...old, decisionService: { ...serviceConfig, model: e.currentTarget.value } })) })
           : h(ui.Menu, { open: modelMenu, portal: true, side: 'bottom', selectedId: decisionModel, onClose: () => setModelMenu(false),
-            items: decisionModels.map(id => ({ id, label: id })),
+            items: modelItems,
             onSelect: model => { if (!decisionModels.includes(model)) return; setPatch(old => ({ ...old, decisionService: { ...serviceConfig, model } })); setModelMenu(false) },
-            anchor: h('button', { type: 'button', className: 'amr-service-trigger', 'aria-label': t('decisionModel'), 'aria-haspopup': 'menu', 'aria-expanded': modelMenu, onClick: () => setModelMenu(!modelMenu) }, h('span', null, decisionModel), h(ui.IconChevronDownOutlineRegular, { size: 14 })),
+            anchor: h('button', { type: 'button', className: 'amr-service-trigger', 'aria-label': t('decisionModel'), 'aria-haspopup': 'menu', 'aria-expanded': modelMenu, onClick: () => { if (!modelMenu && serviceProvider === 'openrouter') loadModels(true); setModelMenu(!modelMenu) } }, h('span', null, decisionModel), h(ui.IconChevronDownOutlineRegular, { size: 14 })),
           })),
+        serviceProvider === 'openrouter' && h('p', null, t('freeModelsHint')),
         serviceProvider==='custom' && h('label', { className: 'amr-settings-row' }, t('compatibleEndpoint'),h('input',{className:'amr-service-input','aria-label':t('compatibleEndpoint'),value:serviceConfig.endpoint??'',placeholder:'https://example.com/v1/systemone',onChange:e=>setPatch(old=>({...old,decisionService:{...serviceConfig,endpoint:e.currentTarget.value}}))})),
         h('p', null, serviceProvider==='custom' ? t('customEndpointHint') : t('endpointLine', { endpoint: DECISION_SERVICES[serviceProvider].endpoint })),
         h('div', { className: 'amr-test-row' },

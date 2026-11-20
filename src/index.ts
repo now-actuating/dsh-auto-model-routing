@@ -103,7 +103,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       if (!response.ok) throw new Error('Routing mode request rejected')
       return response.json()
     } } as never)
-    for (const operation of ['state', 'setMode', 'label', 'observe', 'settings', 'saveSettings', 'setKey', 'testDecision', 'childRouting'] as const) {
+    for (const operation of ['state', 'setMode', 'label', 'observe', 'settings', 'saveSettings', 'setKey', 'testDecision', 'decisionModels', 'childRouting'] as const) {
       child.effect(() => child.connection.fetch.register({
         path: `/api/auto-model-routing.${operation}`,
         methods: ['POST'], requestBody: 'buffered',
@@ -122,7 +122,7 @@ export function apply(ctx: Context, config: Config = {}): void {
             ? (typeof (payload as { sessionId?: unknown })?.sessionId === 'string'
               ? Response.json((record => record ? { ...record, scopeNote: SCOPE_NOTE } : { status: 'unsupported', reason: '没有已绑定的子任务决策' })(policy.status((payload as { sessionId: string }).sessionId)))
               : Response.json({ error: 'invalid request' }, { status: 400 }))
-            : operation === 'settings' || operation === 'saveSettings' || operation === 'setKey' || operation === 'testDecision'
+            : operation === 'settings' || operation === 'saveSettings' || operation === 'setKey' || operation === 'testDecision' || operation === 'decisionModels'
             ? await hostSettings.endpoint(operation, payload)
             : operation === 'observe' ? await observeEndpoint(payload, resolveAgent, feedback, () => ctx.logger.warn('auto-model-routing: could not record exposure'))
             : operation === 'label' ? await labelEndpoint(payload, resolveAgent, feedback) : await modeRequest(operation, payload)
