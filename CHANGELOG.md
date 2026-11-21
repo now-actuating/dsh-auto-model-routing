@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1+mod.5 — 2026-11-21 (fork)
+
+- Remove the Git dependency `prepare` hook so profile installs and removals use the committed `lib/` without building this plugin; keep `build` and `prepack` for release packaging.
+
 ## 0.7.1+mod.4 — 2026-11-20 (fork)
 
 - **AUTO no longer touches the main session.** No decision call, no `selectModel`, no pinned-selection rewrite for main turns in either mode: the main request always carries the user's selection, keeping its prompt cache, adding no per-turn wait and sending nothing out. AUTO now means "route fresh children"; the chip and `defaultMode` are unchanged.
