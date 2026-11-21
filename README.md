@@ -30,6 +30,8 @@ This describes official integration paths—not acceptance of every DSH entry po
 
 **Install.** This version line requires DSH `>=0.2.2-rc.1 <0.3.0` (tested with `0.2.2-rc.1`), Web UI, Node.js `>=22.19`.
 
+**Fork maintenance.** After merging upstream, the `install-safety` check must pass before the fork is deployed.
+
 **Version lines.** DSH 0.2.0–0.2.1 hosts stay on the published 0.7.0 (or 0.6.x); pin `0.7.0` exactly there. DSH 0.2.2 and later use 0.7.1 and later. A 0.2.1 host refuses to load 0.7.1 through its `engines.dsh` check, so it never half-loads. The floor moved to `0.2.2-rc.1` because AUTO now relies on `agent.model.select` and on 0.2.2's per-step selection pinning, neither of which exists in 0.2.0/0.2.1 — see the [Changelog](CHANGELOG.md).
 
 ```sh
