@@ -6,6 +6,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Also publish the release (requires a version tag)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -24,7 +29,7 @@ jobs:
         run: node scripts/check-install-safety.mjs
 
   publish:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish))
     needs: install-safety
     permissions:
       contents: write
